@@ -4,7 +4,7 @@ import { verifyAccessJwt } from '$lib/server/access';
 import type { Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  if (dev) {
+  if (dev && !env.FORCE_ACCESS) {
     event.locals.email = env.DEV_EMAIL ?? 'dev@localhost';
   } else {
     const token = event.request.headers.get('cf-access-jwt-assertion');
