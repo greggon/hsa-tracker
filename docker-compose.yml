@@ -1,0 +1,16 @@
+services:
+  hsa:
+    image: ghcr.io/greggon/hsa-tracker:latest
+    container_name: hsa
+    environment:
+      CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN}
+      CF_ACCESS_AUD: ${CF_ACCESS_AUD}
+      ORIGIN: https://hsa.goncharov.app
+    volumes:
+      - ./data:/data
+    networks: [edge]
+    restart: unless-stopped
+
+networks:
+  edge:
+    external: true
