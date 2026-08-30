@@ -12,7 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"deploy": "docker --context pi compose -f /home/greggon/apps/hsa/docker-compose.yml pull && docker --context pi compose -f /home/greggon/apps/hsa/docker-compose.yml up -d"
+  		"deploy": "ssh greggon@pi4 'cd ~/apps/hsa && docker compose pull && docker compose up -d'"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
