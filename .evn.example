@@ -1,5 +1,6 @@
 DEV_EMAIL=you@example.com
 CF_ACCESS_TEAM_DOMAIN=https://yourteam.cloudflareaccess.com
 CF_ACCESS_AUD=
+DATABASE_PATH=data/hsa.db
 # set to 1 to utilize login flow 
 FORCE_ACCESS=0

@@ -1,6 +1,7 @@
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { verifyAccessJwt } from '$lib/server/access';
+import { upsertUser } from '$lib/server/db/users';
 import type { Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -15,5 +16,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       return new Response('Forbidden', { status: 403 });
     }
   }
+  event.locals.userId = upsertUser(event.locals.email);
+
   return resolve(event);
 };
