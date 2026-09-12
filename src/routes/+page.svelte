@@ -3,4 +3,3 @@
 
 <script lang="ts">let { data } = $props();</script>
 <p>Signed in as {data.email}</p>
-<p>build: 1</p>

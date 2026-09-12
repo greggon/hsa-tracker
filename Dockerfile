@@ -14,5 +14,12 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
+
+ARG GIT_SHA=dev
+ARG BUILD_TIME=unknown
+ENV PUBLIC_GIT_SHA=$GIT_SHA
+ENV PUBLIC_BUILD_TIME=$BUILD_TIME
+ENV NODE_ENV=production
+
 EXPOSE 3000
 CMD ["node", "build"]

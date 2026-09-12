@@ -1,7 +1,7 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 
-	let { children } = $props();
+	let { children, data } = $props();
 </script>
 
 <svelte:head>
@@ -9,3 +9,7 @@
 </svelte:head>
 
 {@render children()}
+
+<footer>
+  <small>{data.build.sha} · {data.build.time}</small>
+</footer>
