@@ -6,6 +6,7 @@ services:
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD}
       ORIGIN: https://hsa.goncharov.app
+      DATABASE_PATH: /data/hsa.db
     volumes:
       - ./data:/data
     networks: [edge]

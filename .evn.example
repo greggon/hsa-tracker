@@ -4,3 +4,5 @@ CF_ACCESS_AUD=
 DATABASE_PATH=data/hsa.db
 # set to 1 to utilize login flow 
 FORCE_ACCESS=0
+BODY_SIZE_LIMIT= 15M
+UPLOAD_ROOT= /data/uploads

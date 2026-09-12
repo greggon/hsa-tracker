@@ -5,7 +5,8 @@ import { upsertUser } from '$lib/server/db/users';
 import type { Handle } from '@sveltejs/kit';
 
 export const handle: Handle = async ({ event, resolve }) => {
-  if (dev && !env.FORCE_ACCESS) {
+  const forceAccess = env.FORCE_ACCESS === '1';
+  if (dev && !forceAccess) {
     event.locals.email = env.DEV_EMAIL ?? 'dev@localhost';
   } else {
     const token = event.request.headers.get('cf-access-jwt-assertion');
