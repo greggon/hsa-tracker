@@ -1,24 +1,79 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
+	import Cropper from 'svelte-easy-crop';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	
 	type Expense = PageProps['data']['expenses'][number];
 
-	let dialogEl = $state<HTMLDialogElement | null>(null);
+	//Edit dialog
+	let editDialogEl = $state<HTMLDialogElement | null>(null);
 	let editing = $state<Expense | null>(null);
 	let errorMsg = $state<string | null>(null);
 
-	function open(e: Expense) {
-		editing = e;
-		errorMsg = null;
-		dialogEl?.showModal();
+	//Add dialog
+	let addDialogEl = $state<HTMLDialogElement | null>(null);
+	let addError = $state<string | null>(null);
+	let previewUrl = $state<string | null>(null);
+	let pickedFile = $state<File | null>(null);
+	let canCrop = $state(false);
+	let crop = $state({ x: 0, y: 0 });
+	let zoom = $state(1);
+	let aspect = $state(3 / 4);
+	let pixels = $state<{ x: number; y: number; width: number; height: number } | null>(null);
+
+	const today = new Date().toLocaleDateString('en-CA');
+
+	function resetAdd() {
+		if (previewUrl) URL.revokeObjectURL(previewUrl);
+		previewUrl = null;
+		pickedFile = null;
+		canCrop = false;
+		pixels = null;
+		crop = { x: 0, y: 0 };
+		zoom = 1;
+		addError = null;
 	}
 
-	function close() {
-		dialogEl?.close();
+	function openAdd() {
+		resetAdd();
+		addDialogEl?.showModal();
+	}
+
+	function closeAdd() {
+		addDialogEl?.close();
+		resetAdd();
+	}
+
+	function onPick(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const f = input.files?.[0];
+		if (!f) return;
+		if (previewUrl) URL.revokeObjectURL(previewUrl);
+		pickedFile = f;
+		pixels = null;
+		crop = { x: 0, y: 0 };
+		zoom = 1;
+
+		if (f.type === 'application/pdf') {
+			canCrop = false;
+			previewUrl = null;
+			return;
+		}
+
+		previewUrl = URL.createObjectURL(f);
+		canCrop = true;
+	}
+
+	function openEdit(e: Expense) {
+		editing = e;
+		errorMsg = null;
+		editDialogEl?.showModal();
+	}
+
+	function closeEdit() {
+		editDialogEl?.close();
 		editing = null;
 	}
 
@@ -35,9 +90,90 @@
 
 <header class="bar">
 	<h1>Expenses</h1>
-	<a class="btn" href={resolve('/expenses/new')}>Add</a>
+	<button class="btn" onclick={openAdd}>Add</button>
 </header>
 
+<dialog bind:this={addDialogEl} onclose={resetAdd}>
+	<form
+		method="POST"
+		action="?/create"
+		enctype="multipart/form-data"
+		use:enhance={({ formData }) => {
+			if (pixels) {
+				formData.set('cropX', String(Math.round(pixels.x)));
+				formData.set('cropY', String(Math.round(pixels.y)));
+				formData.set('cropW', String(Math.round(pixels.width)));
+				formData.set('cropH', String(Math.round(pixels.height)));
+			}
+			return async ({ result, update }) => {
+				await update({ reset: false });
+				if (result.type === 'success') closeAdd();
+				else if (result.type === 'failure') addError = String(result.data?.error ?? 'Save failed.');
+			};
+		}}
+	>
+		<h2>Add expense</h2>
+
+		<div class="file-row">
+			<label class="btn"
+				>Take photo
+				<input
+					type="file"
+					name="fileCamera"
+					accept="image/*"
+					capture="environment"
+					onchange={onPick}
+					hidden
+				/>
+			</label>
+
+			<label class="btn"
+				>Choose file
+				<input
+					type="file"
+					name="filePick"
+					accept="image/*,application/pdf"
+					onchange={onPick}
+					hidden
+				/>
+			</label>
+		</div>
+
+		{#if previewUrl && canCrop}
+			<div class="crop-wrap">
+				<Cropper
+					image={previewUrl}
+					bind:crop
+					bind:zoom
+					{aspect}
+					oncropcomplete={(e) => (pixels = e.pixels)}
+				/>
+			</div>
+			<label class="zoom"
+				>Zoom
+				<input type="range" min="1" max="3" step="0.05" bind:value={zoom} />
+			</label>
+
+			<div class="aspect-row">
+				<button type="button" onclick={() => (aspect = 3 / 4)}>Portrait</button>
+				<button type="button" onclick={() => (aspect = 1)}>Square</button>
+				<button type="button" onclick={() => (aspect = 4 / 3)}>Landscape</button>
+			</div>
+		{:else if pickedFile}
+			<p class="hint">{pickedFile.name} - will upload as-is</p>
+		{/if}
+
+		<label>Amount <input name="amount" type="text" inputmode="decimal" required /></label>
+		<label>Date of service <input name="serviceDate" type="date" value={today} required /></label>
+		<label>Provider <input name="provider" type="text" /></label>
+		<label>Notes <textarea name="notes"></textarea></label>
+
+		{#if addError}<p class="error">{addError}</p>{/if}
+
+		<button type="button" onclick={closeAdd}>Cancel</button>
+		<button type="submit">Save expense</button>
+	</form>
+</dialog>
 {#if data.expenses.length === 0}
 	<p class="empty">No expenses yet. <a href={resolve('/expenses/new')}>Add your first one.</a></p>
 {:else}
@@ -62,12 +198,12 @@
 					{/if}
 				</div>
 
-				<button class="btn edit" onclick={() => open(e)}>Edit</button>
+				<button class="btn edit" onclick={() => openEdit(e)}>Edit</button>
 			</li>
 		{/each}
 	</ul>
 
-	<dialog bind:this={dialogEl} onclose={() => (editing = null)}>
+	<dialog bind:this={editDialogEl} onclose={() => (editing = null)}>
 		{#if editing}
 			<form
 				method="POST"
@@ -75,8 +211,9 @@
 				use:enhance={() =>
 					async ({ result, update }) => {
 						await update({ reset: false });
-						if (result.type === 'success') close();
-						else if (result.type === 'failure') errorMsg = String(result.data?.error ?? 'Save failed.');
+						if (result.type === 'success') closeEdit();
+						else if (result.type === 'failure')
+							errorMsg = String(result.data?.error ?? 'Save failed.');
 					}}
 			>
 				<h2>Edit expense</h2>
@@ -132,7 +269,7 @@
 				{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
 				<div class="actions">
-					<button type="button" onclick={close}>Cancel</button>
+					<button type="button" onclick={closeEdit}>Cancel</button>
 					<button type="submit">Save</button>
 				</div>
 			</form>
@@ -209,6 +346,8 @@
 		border-radius: 8px;
 		padding: 1.25rem;
 		width: min(28rem, 92vw);
+		max-height: 90vh;
+		overflow-y: auto;
 	}
 	dialog::backdrop {
 		background: rgb(0 0 0 / 0.4);
@@ -245,6 +384,31 @@
 	}
 	.error {
 		color: #c00;
+		margin: 0;
+	}
+	.crop-wrap {
+		position: relative;
+		height: 260px;
+		background: #222;
+		border-radius: 4px;
+		margin-bottom: 0.75rem;
+	}
+	.file-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.zoom {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.aspect-row {
+		display: flex;
+		gap: 0.5rem;
+	}
+	.hint {
+		font-size: 0.85rem;
+		color: #666;
 		margin: 0;
 	}
 </style>
