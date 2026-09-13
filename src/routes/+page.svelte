@@ -77,8 +77,11 @@
 		editing = null;
 	}
 
-	const money = (cents: number) =>
-		(cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+	/** An em dash stands in for an amount that could not be read off the receipt. */
+	const money = (cents: number | null) =>
+		cents == null
+			? '—'
+			: (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 	const pretty = (iso: string) =>
 		new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
@@ -173,8 +176,9 @@
 		{/if}
 
 		<label
-			>Amount <input class="input" name="amount" type="text" inputmode="decimal" required /></label
-		>
+			>Amount <span class="opt">leave blank if unreadable</span>
+			<input class="input" name="amount" type="text" inputmode="decimal" />
+		</label>
 		<label
 			>Date of service <input
 				class="input"
@@ -185,7 +189,6 @@
 			/></label
 		>
 		<label>Provider <input class="input" name="provider" type="text" /></label>
-		<label>Notes <textarea class="input" name="notes"></textarea></label>
 
 		{#if addError}<p class="error">{addError}</p>{/if}
 
@@ -216,8 +219,10 @@
 				</div>
 
 				<div class="right">
-					<span class="amount">{money(e.amountCents)}</span>
-					{#if e.reimbursedAt}
+					<span class="amount" class:unread={e.amountCents == null}>{money(e.amountCents)}</span>
+					{#if e.amountCents == null}
+						<span class="tag tag-outline">Needs amount</span>
+					{:else if e.reimbursedAt}
 						<span class="tag tag-accent">Reimbursed</span>
 					{/if}
 				</div>
@@ -244,14 +249,13 @@
 				<input type="hidden" name="id" value={editing.id} />
 
 				<label
-					>Amount
+					>Amount <span class="opt">leave blank if unreadable</span>
 					<input
 						class="input"
 						name="amount"
 						type="text"
 						inputmode="decimal"
-						value={(editing.amountCents / 100).toFixed(2)}
-						required
+						value={editing.amountCents == null ? '' : (editing.amountCents / 100).toFixed(2)}
 					/>
 				</label>
 
@@ -269,27 +273,6 @@
 				<label
 					>Provider
 					<input class="input" name="provider" type="text" value={editing.provider ?? ''} />
-				</label>
-
-				<label
-					>Category
-					<select class="input" name="category" value={editing.category ?? ''}>
-						<option value="">-</option>
-						<option value="medical">Medical</option>
-						<option value="dental">Dental</option>
-						<option value="vision">Vision</option>
-						<option value="pharmacy">Pharmacy</option>
-					</select>
-				</label>
-
-				<label
-					>Patient
-					<input class="input" name="patient" type="text" value={editing.patient ?? ''} />
-				</label>
-
-				<label
-					>Notes
-					<textarea class="input" name="notes">{editing.notes ?? ''}</textarea>
 				</label>
 
 				<label class="check">
@@ -376,6 +359,14 @@
 	.amount {
 		font-variant-numeric: tabular-nums;
 		font-weight: var(--font-heading-weight);
+	}
+	/* An unread amount is absent, not zero — it should not read as a figure. */
+	.amount.unread {
+		color: color-mix(in srgb, var(--color-text) 40%, transparent);
+	}
+	.opt {
+		font-size: 11px;
+		color: color-mix(in srgb, var(--color-text) 40%, transparent);
 	}
 	.empty {
 		padding: 0 var(--space-6);
