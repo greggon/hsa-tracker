@@ -4,6 +4,7 @@ import { documents, expenses } from '$lib/server/db/schema';
 import { fail } from '@sveltejs/kit';
 import { makeDerivatives } from '$lib/server/images';
 import { makeKey, sha256, writeAtomic } from '$lib/server/storage';
+import { getVaultStats } from '$lib/server/db/stats';
 
 /**
  * A blank amount is deliberate, not a mistake: a receipt whose total could not
@@ -40,7 +41,10 @@ export const load = ({ locals }) => {
 		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
 		.all();
 
-	return { expenses: rows };
+	// A second pass over the same table. Kept separate because the figures and
+	// the list have genuinely different shapes, and at a personal ledger's scale
+	// the extra scan is not worth entangling them for.
+	return { expenses: rows, stats: getVaultStats(locals.userId) };
 };
 
 export const actions = {
