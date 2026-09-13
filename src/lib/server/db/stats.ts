@@ -24,13 +24,31 @@ export type YearPoint = {
 	cumulativeCents: number;
 };
 
+/** One day on which something was filed. */
+export type DayPoint = {
+	/** YYYY-MM-DD. */
+	date: string;
+	/** Unreimbursed, amount-known spend filed against this day. */
+	dayCents: number;
+	/** Running total through the end of this day. */
+	cumulativeCents: number;
+};
+
+/** An axis label and where along the width it belongs, as a percentage. */
+export type Tick = { label: string; xPercent: number };
+
 export type ChartGeometry = {
-	/** Cumulative line, as an SVG path `d`. Empty string when there is no data. */
+	/**
+	 * Cumulative total as an SVG path `d`, stepped: flat between filings and
+	 * vertical on the day of one. Empty string when there is no data.
+	 */
 	linePath: string;
 	/** The same line closed along the baseline, for the gradient fill. */
 	areaPath: string;
 	/** Per-year bars as a single path. Scaled to its own maximum, not the cumulative one. */
 	barsPath: string;
+	/** Year labels placed at their true position along the time axis. */
+	ticks: Tick[];
 	years: number[];
 	/** Ceiling the cumulative line is scaled against. */
 	cumulativeMaxCents: number;
@@ -63,6 +81,9 @@ export type VaultStats = {
 	/** This calendar year's contribution — the artboard's "+$1,918 this year". */
 	currentYearCents: number;
 	incomplete: IncompleteReceipt[];
+	/** Every day with a filing, for the cumulative line. */
+	days: DayPoint[];
+	/** Annual totals, for the per-year bars. */
 	series: YearPoint[];
 	chart: ChartGeometry;
 };
@@ -81,59 +102,108 @@ export function niceCeil(value: number): number {
 	return 10 * base;
 }
 
+/** Midnight UTC for a YYYY-MM-DD string; UTC throughout so DST cannot shift a day. */
+function dayMs(date: string): number {
+	return Date.parse(`${date}T00:00:00Z`);
+}
+
 /**
- * Project a year series into the artboard's SVG paths.
+ * Year labels at their true position along the time axis.
+ *
+ * With days rather than evenly-spaced years, a quiet stretch now occupies the
+ * width it actually took, so the labels have to be placed by date rather than
+ * by index. The first label sits at the left edge and carries the year the
+ * record opens in, which is rarely January.
+ */
+function buildTicks(startMs: number, endMs: number): Tick[] {
+	const span = endMs - startMs;
+	const first = new Date(startMs).getUTCFullYear();
+	const ticks: Tick[] = [{ label: String(first), xPercent: 0 }];
+	if (span <= 0) return ticks;
+
+	for (let year = first + 1; year <= new Date(endMs).getUTCFullYear(); year++) {
+		const ms = Date.UTC(year, 0, 1);
+		if (ms <= startMs || ms > endMs) continue;
+		// Two decimals is finer than a pixel at any realistic width, and keeps
+		// full float noise out of the markup.
+		const xPercent = Number((((ms - startMs) / span) * 100).toFixed(2));
+		// Drop a label that would collide with the one before it.
+		if (xPercent - ticks[ticks.length - 1].xPercent < 7) continue;
+		ticks.push({ label: String(year), xPercent });
+	}
+	return ticks;
+}
+
+/**
+ * Project the series into the artboard's SVG paths.
+ *
+ * The cumulative line is daily and stepped: a running total is flat until
+ * something is filed and then jumps, so drawing it as a diagonal ramp would
+ * imply money accruing on days nothing happened. Only days that change the
+ * total need a vertex — the days between are the flat runs — so the path stays
+ * small without losing a day of resolution.
+ *
+ * The x axis is time, not position: `throughDate` extends the line to today, so
+ * a year of filing nothing reads as a long flat stretch rather than one tick.
  *
  * Pure, so it can be exercised without a database.
  */
-export function buildChartGeometry(series: YearPoint[]): ChartGeometry {
-	const years = series.map((p) => p.year);
+export function buildChartGeometry(
+	days: DayPoint[],
+	years: YearPoint[],
+	throughDate: string
+): ChartGeometry {
 	const empty: ChartGeometry = {
 		linePath: '',
 		areaPath: '',
 		barsPath: '',
-		years,
+		ticks: [],
+		years: years.map((p) => p.year),
 		cumulativeMaxCents: 0,
 		yearMaxCents: 0
 	};
-	if (series.length === 0) return empty;
+	if (days.length === 0) return empty;
 
-	const cumulativeMax = niceCeil(Math.max(...series.map((p) => p.cumulativeCents)));
-	const yearMax = niceCeil(Math.max(...series.map((p) => p.yearCents)));
+	const cumulativeMax = niceCeil(Math.max(...days.map((p) => p.cumulativeCents)));
+	const yearMax = niceCeil(Math.max(0, ...years.map((p) => p.yearCents)));
 
 	// The artboard's projection, with `max` now a parameter.
 	const project = (value: number, max: number) =>
 		CHART_H - CHART_BOTTOM_PAD - (value / max) * (CHART_H - CHART_TOP - 8);
 
-	// A single year has no run to draw across, so the line is held flat at its
-	// value rather than collapsing to one invisible point.
-	const xs =
-		series.length === 1 ? [0, CHART_W] : series.map((_, i) => (i * CHART_W) / (series.length - 1));
-	const ys =
-		series.length === 1
-			? [
-					project(series[0].cumulativeCents, cumulativeMax),
-					project(series[0].cumulativeCents, cumulativeMax)
-				]
-			: series.map((p) => project(p.cumulativeCents, cumulativeMax));
+	const startMs = dayMs(days[0].date);
+	// Run to today, or past it if something is dated in the future.
+	const endMs = Math.max(dayMs(days[days.length - 1].date), dayMs(throughDate));
+	const span = endMs - startMs;
 
-	const linePath = xs
-		.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${ys[i].toFixed(1)}`)
-		.join(' ');
+	// A single day — or everything filed on one day — has no run to draw across,
+	// so the line is held flat at its value rather than collapsing to a point.
+	const x = (date: string) => (span <= 0 ? 0 : ((dayMs(date) - startMs) / span) * CHART_W);
+
+	const segments = [`M0 ${project(days[0].cumulativeCents, cumulativeMax).toFixed(1)}`];
+	for (let i = 1; i < days.length; i++) {
+		segments.push(
+			`H${x(days[i].date).toFixed(1)} V${project(days[i].cumulativeCents, cumulativeMax).toFixed(1)}`
+		);
+	}
+	// Hold the total flat from the last filing to the right-hand edge.
+	segments.push(`H${CHART_W}`);
+
+	const linePath = segments.join(' ');
 	const areaPath = `${linePath} L${CHART_W} ${CHART_H} L0 ${CHART_H} Z`;
 
 	// Bars keep the artboard's 42%-of-slot width, but are scaled to the
 	// per-year maximum instead of the artboard's `v * 2.1` fudge, which only
 	// existed to make mock per-year values fill a cumulative-scaled box.
-	const slot = CHART_W / series.length;
+	const slot = years.length > 0 ? CHART_W / years.length : CHART_W;
 	const barWidth = slot * 0.42;
-	const barsPath = series
+	const barsPath = years
 		.map((p, i) => {
-			const x = i * slot + (slot - barWidth) / 2;
-			const y = project(p.yearCents, yearMax);
+			const bx = i * slot + (slot - barWidth) / 2;
+			const by = project(p.yearCents, yearMax);
 			return (
-				`M${x.toFixed(1)} ${CHART_H} L${x.toFixed(1)} ${y.toFixed(1)} ` +
-				`L${(x + barWidth).toFixed(1)} ${y.toFixed(1)} L${(x + barWidth).toFixed(1)} ${CHART_H} Z`
+				`M${bx.toFixed(1)} ${CHART_H} L${bx.toFixed(1)} ${by.toFixed(1)} ` +
+				`L${(bx + barWidth).toFixed(1)} ${by.toFixed(1)} L${(bx + barWidth).toFixed(1)} ${CHART_H} Z`
 			);
 		})
 		.join(' ');
@@ -142,10 +212,38 @@ export function buildChartGeometry(series: YearPoint[]): ChartGeometry {
 		linePath,
 		areaPath,
 		barsPath,
-		years,
+		ticks: buildTicks(startMs, endMs),
+		years: years.map((p) => p.year),
 		cumulativeMaxCents: cumulativeMax,
 		yearMaxCents: yearMax
 	};
+}
+
+/**
+ * Collapse rows onto the days they were filed against, with a running total.
+ *
+ * Only days that carry a filing appear: the flat runs between them are implied,
+ * and reconstructing every calendar day in between would add thousands of
+ * identical points without adding any information.
+ */
+export function buildDailySeries(
+	rows: { serviceDate: string; amountCents: number | null }[]
+): DayPoint[] {
+	const byDate = new Map<string, number>();
+	for (const r of rows) {
+		if (r.amountCents == null) continue;
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(r.serviceDate)) continue;
+		byDate.set(r.serviceDate, (byDate.get(r.serviceDate) ?? 0) + r.amountCents);
+	}
+
+	// ISO dates sort lexicographically in chronological order.
+	const dates = [...byDate.keys()].sort();
+	let running = 0;
+	return dates.map((date) => {
+		const dayCents = byDate.get(date)!;
+		running += dayCents;
+		return { date, dayCents, cumulativeCents: running };
+	});
 }
 
 /**
@@ -254,7 +352,10 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
 		a.serviceDate < b.serviceDate ? 1 : a.serviceDate > b.serviceDate ? -1 : 0
 	);
 
+	const days = buildDailySeries(unreimbursed);
 	const series = buildSeries(unreimbursed, now.getFullYear());
+	// Local date, so "today" matches the date a receipt filed right now would get.
+	const throughDate = now.toLocaleDateString('en-CA');
 
 	return {
 		totalCents,
@@ -264,8 +365,9 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
 		oldestServiceDate,
 		currentYearCents,
 		incomplete,
+		days,
 		series,
-		chart: buildChartGeometry(series)
+		chart: buildChartGeometry(days, series, throughDate)
 	};
 }
 

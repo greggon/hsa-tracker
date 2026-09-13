@@ -262,7 +262,7 @@
 
 			<div class="chart-head">
 				<span class="kick">The claim, built over time</span>
-				{#if data.stats.series.length > 0}
+				{#if data.stats.days.length > 0}
 					<span class="seg">
 						<label class="seg-opt">
 							<input type="radio" name="chartMode" value="cumulative" bind:group={chartMode} />
@@ -276,7 +276,7 @@
 				{/if}
 			</div>
 
-			{#if data.stats.series.length === 0}
+			{#if data.stats.days.length === 0}
 				<p class="chart-empty">Nothing filed yet. The line starts with your first receipt.</p>
 			{:else}
 				<svg
@@ -287,7 +287,7 @@
 					preserveAspectRatio="none"
 					role="img"
 					aria-label={chartMode === 'cumulative'
-						? `Cumulative unreimbursed total, ${axisLabel}, reaching ${money(data.stats.totalCents)}`
+						? `Cumulative unreimbursed total by day, ${axisLabel}, reaching ${money(data.stats.totalCents)}`
 						: `Unreimbursed spend per year, ${axisLabel}`}
 				>
 					<defs>
@@ -308,14 +308,23 @@
 						<path d={data.stats.chart.barsPath} class="bars" vector-effect="non-scaling-stroke" />
 					{/if}
 				</svg>
-				<div class="axis">
-					{#each data.stats.chart.years as year (year)}
-						<span>{year}</span>
-					{/each}
-				</div>
+				{#if chartMode === 'cumulative'}
+					<!-- Placed by date: a quiet stretch takes the width it actually took. -->
+					<div class="axis axis-timed">
+						{#each data.stats.chart.ticks as t (t.label)}
+							<span style="left:{t.xPercent}%">{t.label}</span>
+						{/each}
+					</div>
+				{:else}
+					<div class="axis">
+						{#each data.stats.chart.years as year (year)}
+							<span>{year}</span>
+						{/each}
+					</div>
+				{/if}
 				<!-- Every year will not fit on a phone; the span is what matters there. -->
 				<div class="axis axis-compact">
-					<span>{data.stats.chart.years[0]}</span>
+					<span>{data.stats.chart.ticks[0]?.label}</span>
 					<span>today</span>
 				</div>
 			{/if}
@@ -753,6 +762,20 @@
 		margin-top: 9px;
 		font-size: 10.5px;
 		color: color-mix(in srgb, var(--color-text) 38%, transparent);
+	}
+	/* Ticks carry their own position, so they are placed rather than distributed. */
+	.axis-timed {
+		display: block;
+		position: relative;
+		height: 13px;
+	}
+	.axis-timed span {
+		position: absolute;
+		transform: translateX(-50%);
+		white-space: nowrap;
+	}
+	.axis-timed span:first-child {
+		transform: none;
 	}
 	.axis-compact {
 		display: none;
