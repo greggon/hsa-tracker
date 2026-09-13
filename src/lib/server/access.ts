@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import { env } from '$env/dynamic/private';
 
 let jwks: JWTVerifyGetKey | undefined;

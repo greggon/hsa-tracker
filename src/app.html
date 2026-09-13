@@ -4,6 +4,16 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<meta name="theme-color" content="#161826" />
+		<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+		<style>
+			/* Paint the Nocturne ground before any CSS loads, so there is no
+			   white flash on a dark interface. Kept in sync with --color-bg. */
+			html {
+				color-scheme: dark;
+				background: #161826;
+			}
+		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

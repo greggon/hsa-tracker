@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import Cropper from 'svelte-easy-crop';
+	import Icon from '$lib/components/Icon.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -90,7 +90,10 @@
 
 <header class="bar">
 	<h1>Expenses</h1>
-	<button class="btn" onclick={openAdd}>Add</button>
+	<button class="btn btn-primary" onclick={openAdd}>
+		<Icon name="plus" size={14} width={2} />
+		Add
+	</button>
 </header>
 
 <dialog bind:this={addDialogEl} onclose={resetAdd}>
@@ -115,8 +118,9 @@
 		<h2>Add expense</h2>
 
 		<div class="file-row">
-			<label class="btn"
-				>Take photo
+			<label class="btn btn-secondary">
+				<Icon name="camera" size={15} />
+				Take photo
 				<input
 					type="file"
 					name="fileCamera"
@@ -127,8 +131,9 @@
 				/>
 			</label>
 
-			<label class="btn"
-				>Choose file
+			<label class="btn btn-secondary">
+				<Icon name="receipt" size={15} />
+				Choose file
 				<input
 					type="file"
 					name="filePick"
@@ -155,27 +160,46 @@
 			</label>
 
 			<div class="aspect-row">
-				<button type="button" onclick={() => (aspect = 3 / 4)}>Portrait</button>
-				<button type="button" onclick={() => (aspect = 1)}>Square</button>
-				<button type="button" onclick={() => (aspect = 4 / 3)}>Landscape</button>
+				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 3 / 4)}
+					>Portrait</button
+				>
+				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 1)}>Square</button>
+				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 4 / 3)}
+					>Landscape</button
+				>
 			</div>
 		{:else if pickedFile}
 			<p class="hint">{pickedFile.name} - will upload as-is</p>
 		{/if}
 
-		<label>Amount <input name="amount" type="text" inputmode="decimal" required /></label>
-		<label>Date of service <input name="serviceDate" type="date" value={today} required /></label>
-		<label>Provider <input name="provider" type="text" /></label>
-		<label>Notes <textarea name="notes"></textarea></label>
+		<label
+			>Amount <input class="input" name="amount" type="text" inputmode="decimal" required /></label
+		>
+		<label
+			>Date of service <input
+				class="input"
+				name="serviceDate"
+				type="date"
+				value={today}
+				required
+			/></label
+		>
+		<label>Provider <input class="input" name="provider" type="text" /></label>
+		<label>Notes <textarea class="input" name="notes"></textarea></label>
 
 		{#if addError}<p class="error">{addError}</p>{/if}
 
-		<button type="button" onclick={closeAdd}>Cancel</button>
-		<button type="submit">Save expense</button>
+		<div class="actions">
+			<button type="button" class="btn btn-secondary" onclick={closeAdd}>Cancel</button>
+			<button type="submit" class="btn btn-primary">Save expense</button>
+		</div>
 	</form>
 </dialog>
 {#if data.expenses.length === 0}
-	<p class="empty">No expenses yet. <a href={resolve('/expenses/new')}>Add your first one.</a></p>
+	<p class="empty">
+		No expenses yet.
+		<button type="button" class="btn btn-ghost" onclick={openAdd}>Add your first one.</button>
+	</p>
 {:else}
 	<ul class="list">
 		{#each data.expenses as e (e.id)}
@@ -194,11 +218,11 @@
 				<div class="right">
 					<span class="amount">{money(e.amountCents)}</span>
 					{#if e.reimbursedAt}
-						<span class="tag">Reimbured</span>
+						<span class="tag tag-accent">Reimbursed</span>
 					{/if}
 				</div>
 
-				<button class="btn edit" onclick={() => openEdit(e)}>Edit</button>
+				<button class="btn btn-secondary" onclick={() => openEdit(e)}>Edit</button>
 			</li>
 		{/each}
 	</ul>
@@ -222,6 +246,7 @@
 				<label
 					>Amount
 					<input
+						class="input"
 						name="amount"
 						type="text"
 						inputmode="decimal"
@@ -232,17 +257,23 @@
 
 				<label
 					>Date of service
-					<input name="serviceDate" type="date" value={editing.serviceDate} required />
+					<input
+						class="input"
+						name="serviceDate"
+						type="date"
+						value={editing.serviceDate}
+						required
+					/>
 				</label>
 
 				<label
 					>Provider
-					<input name="provider" type="text" value={editing.provider ?? ''} />
+					<input class="input" name="provider" type="text" value={editing.provider ?? ''} />
 				</label>
 
 				<label
 					>Category
-					<select name="category" value={editing.category ?? ''}>
+					<select class="input" name="category" value={editing.category ?? ''}>
 						<option value="">-</option>
 						<option value="medical">Medical</option>
 						<option value="dental">Dental</option>
@@ -253,12 +284,12 @@
 
 				<label
 					>Patient
-					<input name="patient" type="text" value={editing.patient ?? ''} />
+					<input class="input" name="patient" type="text" value={editing.patient ?? ''} />
 				</label>
 
 				<label
 					>Notes
-					<textarea name="notes">{editing.notes ?? ''}</textarea>
+					<textarea class="input" name="notes">{editing.notes ?? ''}</textarea>
 				</label>
 
 				<label class="check">
@@ -269,8 +300,8 @@
 				{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
 
 				<div class="actions">
-					<button type="button" onclick={closeEdit}>Cancel</button>
-					<button type="submit">Save</button>
+					<button type="button" class="btn btn-secondary" onclick={closeEdit}>Cancel</button>
+					<button type="submit" class="btn btn-primary">Save</button>
 				</div>
 			</form>
 		{/if}
@@ -278,32 +309,49 @@
 {/if}
 
 <style>
+	/* Layout only — colour, spacing and radii come from the Nocturne tokens,
+	   and buttons/inputs/tags now use the system's own classes. This page is
+	   rewritten into the artboard's vault layout in a later step. */
 	.bar {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		padding: var(--space-4) var(--space-6);
+	}
+	.bar h1 {
+		font-size: 25px;
+		margin: 0;
 	}
 	.list {
 		list-style: none;
-		padding: 0;
+		padding: 0 var(--space-6);
 		margin: 0;
 	}
 	.row {
 		display: grid;
 		grid-template-columns: 48px 1fr auto auto;
-		gap: 0.75rem;
+		gap: var(--space-4);
 		align-items: center;
-		padding: 0.75rem 0;
-		border-bottom: 1px solid #e5e5e5;
+		padding: var(--space-4) 0;
+		/* Nocturne row rule: fades to transparent over 48px at each end. */
+		background: linear-gradient(
+				to right,
+				transparent,
+				color-mix(in srgb, var(--color-text) 8%, transparent) 48px,
+				color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px),
+				transparent
+			)
+			no-repeat bottom / 100% 1px;
 	}
 	.thumb {
 		width: 48px;
 		height: 48px;
 		object-fit: cover;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 	}
 	.placeholder {
-		background: #eee;
+		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
+		box-shadow: inset 0 0 0 1px var(--color-divider);
 	}
 	.meta {
 		display: flex;
@@ -311,8 +359,8 @@
 		min-width: 0;
 	}
 	.date {
-		font-size: 0.8rem;
-		color: #666;
+		font-size: 12px;
+		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
 	.provider {
 		overflow: hidden;
@@ -323,92 +371,83 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
+		gap: var(--space-1);
 	}
 	.amount {
 		font-variant-numeric: tabular-nums;
-		font-weight: 600;
-	}
-	.tag {
-		font-size: 0.7rem;
-		color: #3a7;
-	}
-	.btn {
-		padding: 0.4rem 0.7rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		text-decoration: none;
+		font-weight: var(--font-heading-weight);
 	}
 	.empty {
-		color: #666;
+		padding: 0 var(--space-6);
+		color: color-mix(in srgb, var(--color-text) 55%, transparent);
 	}
 	dialog {
+		color: var(--color-text);
+		background: var(--color-surface);
 		border: none;
-		border-radius: 8px;
-		padding: 1.25rem;
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-lg);
+		padding: var(--space-6);
 		width: min(28rem, 92vw);
 		max-height: 90vh;
 		overflow-y: auto;
 	}
 	dialog::backdrop {
-		background: rgb(0 0 0 / 0.4);
+		background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+	}
+	dialog h2 {
+		font-size: 20px;
 	}
 	dialog form {
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: var(--space-4);
 	}
 	dialog label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
-		font-size: 0.85rem;
+		gap: 5px;
+		font-size: 12px;
+		color: color-mix(in srgb, var(--color-text) 70%, transparent);
 	}
 	dialog label.check {
 		flex-direction: row;
 		align-items: center;
-		gap: 0.5rem;
-	}
-	dialog input,
-	dialog select,
-	dialog textarea {
-		font: inherit;
-		padding: 0.5rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
+		gap: var(--space-3);
 	}
 	.actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 0.5rem;
-		margin-top: 0.5rem;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
 	}
 	.error {
-		color: #c00;
+		color: var(--color-danger);
 		margin: 0;
 	}
 	.crop-wrap {
 		position: relative;
 		height: 260px;
-		background: #222;
-		border-radius: 4px;
-		margin-bottom: 0.75rem;
+		background: var(--color-neutral-900);
+		border-radius: var(--radius-sm);
+		margin-bottom: var(--space-4);
 	}
 	.file-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	.zoom {
 		flex-direction: row;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	.aspect-row {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-3);
 	}
 	.hint {
-		font-size: 0.85rem;
-		color: #666;
+		font-size: 12px;
+		color: color-mix(in srgb, var(--color-text) 55%, transparent);
 		margin: 0;
 	}
 </style>

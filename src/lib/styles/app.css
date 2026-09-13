@@ -1,0 +1,13 @@
+/* App-level additions to Nocturne.
+   Kept separate from the vendored `nocturne.css` so that file stays a clean
+   mirror of the design project and can be re-synced without losing these.
+
+   Nocturne is a deliberately mono palette and defines no error role, but the
+   expense forms need one. These two values sit on the same perceptual
+   lightness steps as the system's own ramps (--color-*-300 for the text tone,
+   --color-*-800 for the tinted fill) so they carry the same visual weight as
+   an accent tag beside them. */
+:root {
+	--color-danger: #e79a9a;
+	--color-danger-800: #6a3a3a;
+}
