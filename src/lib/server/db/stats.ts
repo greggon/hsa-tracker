@@ -1,6 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { db } from './index';
-import { documents, expenses } from './schema';
+import { documents, expenses, users } from './schema';
 
 /**
  * The numbers behind the vault screen.
@@ -276,10 +276,15 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
  * already written on every upload, so this costs one grouped scan.
  */
 export function findDuplicateExpenseIds(userId: number): Set<number> {
+	// Joined to live expenses only, so a deleted receipt cannot keep its twin
+	// flagged as a duplicate.
 	const docs = db
 		.select({ expenseId: documents.expenseId, sha256: documents.sha256 })
 		.from(documents)
-		.where(and(eq(documents.userId, userId), eq(documents.isPrimary, 1)))
+		.innerJoin(expenses, eq(expenses.id, documents.expenseId))
+		.where(
+			and(eq(documents.userId, userId), eq(documents.isPrimary, 1), isNull(expenses.deletedAt))
+		)
 		.all();
 
 	const byHash = new Map<string, number[]>();
@@ -297,4 +302,73 @@ export function findDuplicateExpenseIds(userId: number): Set<number> {
 		if (distinct.size > 1) for (const id of distinct) duplicates.add(id);
 	}
 	return duplicates;
+}
+
+/**
+ * The receipt detail screen's "Will this hold up?" checks.
+ *
+ * Each is something the database can actually answer. `afterHsaOpened` is
+ * `null` rather than false when the account has no recorded open date — an
+ * unanswerable question is not a failed one.
+ */
+export type ReceiptAudit = {
+	hasImage: boolean;
+	fieldsComplete: boolean;
+	/** null when the HSA open date has never been recorded. */
+	afterHsaOpened: boolean | null;
+	notReimbursed: boolean;
+	notDuplicate: boolean;
+};
+
+export function auditReceipt(userId: number, expenseId: number): ReceiptAudit | null {
+	const row = db
+		.select({
+			serviceDate: expenses.serviceDate,
+			amountCents: expenses.amountCents,
+			provider: expenses.provider,
+			reimbursedAt: expenses.reimbursedAt,
+			docId: documents.id,
+			sha256: documents.sha256
+		})
+		.from(expenses)
+		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
+		.where(and(eq(expenses.id, expenseId), eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.get();
+
+	if (!row) return null;
+
+	const openedOn =
+		db.select({ hsaOpenedOn: users.hsaOpenedOn }).from(users).where(eq(users.id, userId)).get()
+			?.hsaOpenedOn ?? null;
+
+	// A twin is the same bytes filed against a different *live* expense. The join
+	// matters: without it a receipt stays flagged as a duplicate of one that was
+	// deleted. Documents with no expense drop out for free, since `expense_id !=
+	// n` is NULL for them.
+	let notDuplicate = true;
+	if (row.sha256) {
+		const twin = db
+			.select({ id: documents.id })
+			.from(documents)
+			.innerJoin(expenses, eq(expenses.id, documents.expenseId))
+			.where(
+				and(
+					eq(documents.userId, userId),
+					eq(documents.sha256, row.sha256),
+					eq(documents.isPrimary, 1),
+					ne(documents.expenseId, expenseId),
+					isNull(expenses.deletedAt)
+				)
+			)
+			.get();
+		notDuplicate = !twin;
+	}
+
+	return {
+		hasImage: row.docId != null,
+		fieldsComplete: row.amountCents != null && !!row.provider?.trim() && !!row.serviceDate?.trim(),
+		afterHsaOpened: openedOn == null ? null : row.serviceDate >= openedOn,
+		notReimbursed: row.reimbursedAt == null,
+		notDuplicate
+	};
 }

@@ -5,21 +5,7 @@ import { fail } from '@sveltejs/kit';
 import { makeDerivatives } from '$lib/server/images';
 import { makeKey, sha256, writeAtomic } from '$lib/server/storage';
 import { getVaultStats } from '$lib/server/db/stats';
-
-/**
- * A blank amount is deliberate, not a mistake: a receipt whose total could not
- * be read still needs filing so it can surface in the "Needs a field" list, and
- * it stays out of the running total until someone fills it in. A non-blank
- * value that will not parse is still an error — that is a typo, not an
- * unreadable receipt.
- */
-function toCents(raw: string): number | null {
-	const trimmed = raw.trim();
-	if (trimmed === '') return null;
-	const n = Math.round(parseFloat(trimmed.replace(/[$,\s]/g, '')) * 100);
-	if (!Number.isFinite(n) || n <= 0) throw new Error('invalid');
-	return n;
-}
+import { AMOUNT_ERROR, toCents } from '$lib/server/money';
 
 export const load = ({ locals }) => {
 	const rows = db
@@ -48,46 +34,6 @@ export const load = ({ locals }) => {
 };
 
 export const actions = {
-	update: async ({ request, locals }) => {
-		const form = await request.formData();
-		const id = Number(form.get('id'));
-
-		const existing = db
-			.select()
-			.from(expenses)
-			.where(and(eq(expenses.id, id), eq(expenses.userId, locals.userId)))
-			.get();
-		if (!existing) return fail(404, { error: 'Not found.' });
-
-		const serviceDate = String(form.get('serviceDate') ?? '');
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) {
-			return fail(400, { error: 'Enter a valid date.' });
-		}
-
-		let amountCents: number | null;
-		try {
-			amountCents = toCents(String(form.get('amount') ?? ''));
-		} catch {
-			return fail(400, { error: 'Enter a valid amount, or leave it blank if it is not readable.' });
-		}
-
-		const wantsReimbursed = form.get('reimbursed') === 'on';
-		const reimbursedAt = wantsReimbursed ? (existing.reimbursedAt ?? new Date()) : null;
-
-		db.update(expenses)
-			.set({
-				serviceDate,
-				amountCents,
-				provider: String(form.get('provider') ?? '') || null,
-				reimbursedAt,
-				reimbursedAmountCents: wantsReimbursed ? (amountCents ?? 0) : 0,
-				updatedAt: new Date()
-			})
-			.where(and(eq(expenses.id, id), eq(expenses.userId, locals.userId)))
-			.run();
-
-		return { success: true };
-	},
 	create: async ({ request, locals }) => {
 		const form = await request.formData();
 		const candidates = [form.get('fileCamera'), form.get('filePick')];
@@ -103,7 +49,7 @@ export const actions = {
 		try {
 			amountCents = toCents(String(form.get('amount') ?? ''));
 		} catch {
-			return fail(400, { error: 'Enter a valid amount, or leave it blank if it is not readable.' });
+			return fail(400, { error: AMOUNT_ERROR });
 		}
 
 		let doc: typeof documents.$inferInsert | null = null;

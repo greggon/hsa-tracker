@@ -6,15 +6,9 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	type Expense = PageProps['data']['expenses'][number];
 	// Derived from the loaded shape rather than imported from $lib/server, which
 	// client code may not reach.
 	type IncompleteReason = PageProps['data']['stats']['incomplete'][number]['reasons'][number];
-
-	//Edit dialog
-	let editDialogEl = $state<HTMLDialogElement | null>(null);
-	let editing = $state<Expense | null>(null);
-	let errorMsg = $state<string | null>(null);
 
 	//Add dialog
 	let addDialogEl = $state<HTMLDialogElement | null>(null);
@@ -96,24 +90,6 @@
 
 		previewUrl = URL.createObjectURL(f);
 		canCrop = true;
-	}
-
-	function openEdit(e: Expense) {
-		// showModal() throws if the dialog is already open.
-		if (editDialogEl?.open) return;
-		editing = e;
-		errorMsg = null;
-		editDialogEl?.showModal();
-	}
-
-	function openEditById(id: number) {
-		const match = data.expenses.find((e) => e.id === id);
-		if (match) openEdit(match);
-	}
-
-	function closeEdit() {
-		editDialogEl?.close();
-		editing = null;
 	}
 
 	/** An em dash stands in for an amount that could not be read off the receipt. */
@@ -284,12 +260,12 @@
 				<ul class="needs">
 					{#each data.stats.incomplete as r (r.id)}
 						<li>
-							<button class="card elev-sm need" onclick={() => openEditById(r.id)}>
+							<a class="card elev-sm need" href={resolve('/receipts/[id]', { id: String(r.id) })}>
 								<span class="need-what">{REASON_LABEL[r.reasons[0]]}</span>
 								<span class="need-who">
 									{r.provider ?? 'No provider'} · {prettyShort(r.serviceDate)}
 								</span>
-							</button>
+							</a>
 						</li>
 					{/each}
 				</ul>
@@ -353,9 +329,9 @@
 								</td>
 								<td class="date">{pretty(e.serviceDate)}</td>
 								<td>
-									<button class="linkish" onclick={() => openEdit(e)}>
+									<a class="rowlink" href={resolve('/receipts/[id]', { id: String(e.id) })}>
 										{e.provider ?? 'No provider'}
-									</button>
+									</a>
 								</td>
 								<td class="right amount" class:unread={e.amountCents == null}>
 									{money(e.amountCents)}
@@ -476,58 +452,6 @@
 			<button type="submit" class="btn btn-primary">Save receipt</button>
 		</div>
 	</form>
-</dialog>
-
-<dialog bind:this={editDialogEl} onclose={() => (editing = null)}>
-	{#if editing}
-		<form
-			method="POST"
-			action="?/update"
-			use:enhance={() =>
-				async ({ result, update }) => {
-					await update({ reset: false });
-					if (result.type === 'success') closeEdit();
-					else if (result.type === 'failure')
-						errorMsg = String(result.data?.error ?? 'Save failed.');
-				}}
-		>
-			<h2>Edit receipt</h2>
-			<input type="hidden" name="id" value={editing.id} />
-
-			<label
-				>Amount <span class="opt">leave blank if unreadable</span>
-				<input
-					class="input"
-					name="amount"
-					type="text"
-					inputmode="decimal"
-					value={editing.amountCents == null ? '' : (editing.amountCents / 100).toFixed(2)}
-				/>
-			</label>
-
-			<label
-				>Date of service
-				<input class="input" name="serviceDate" type="date" value={editing.serviceDate} required />
-			</label>
-
-			<label
-				>Provider
-				<input class="input" name="provider" type="text" value={editing.provider ?? ''} />
-			</label>
-
-			<label class="check">
-				<input type="checkbox" name="reimbursed" checked={!!editing.reimbursedAt} />
-				Reimbursed
-			</label>
-
-			{#if errorMsg}<p class="error">{errorMsg}</p>{/if}
-
-			<div class="actions">
-				<button type="button" class="btn btn-secondary" onclick={closeEdit}>Cancel</button>
-				<button type="submit" class="btn btn-primary">Save</button>
-			</div>
-		</form>
-	{/if}
 </dialog>
 
 <style>
@@ -720,10 +644,8 @@
 		padding: 10px 12px;
 		gap: 4px;
 		text-align: left;
-		border: none;
-		font: inherit;
 		color: inherit;
-		cursor: pointer;
+		text-decoration: none;
 	}
 	.need:hover {
 		background: color-mix(in srgb, var(--color-text) 7%, transparent);
@@ -790,17 +712,11 @@
 	.placeholder {
 		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
 	}
-	/* Opens the receipt; becomes a real link once the detail route exists. */
-	.linkish {
-		background: none;
-		border: none;
-		padding: 0;
-		font: inherit;
+	.rowlink {
 		color: inherit;
-		cursor: pointer;
-		text-align: left;
+		text-decoration: none;
 	}
-	.linkish:hover {
+	.rowlink:hover {
 		color: var(--color-accent);
 	}
 	.empty {
@@ -863,11 +779,6 @@
 		gap: 5px;
 		font-size: 12px;
 		color: color-mix(in srgb, var(--color-text) 70%, transparent);
-	}
-	dialog label.check {
-		flex-direction: row;
-		align-items: center;
-		gap: var(--space-3);
 	}
 	.opt {
 		font-size: 11px;

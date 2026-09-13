@@ -23,6 +23,10 @@
 		/** Camera flash toggle. */
 		flash: '<path d="M13 2L5 13h6l-1 9 8-11h-6l1-9z"/>',
 		check: '<path d="M5 12.5l4 4 9.5-9.5"/>',
+		/* The artboard only ever drew passing checks. These two carry the failing
+		   and unanswerable states of the receipt checklist, in the same geometry. */
+		cross: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+		dash: '<path d="M5 12h14"/>',
 		chevronLeft: '<path d="M15 5l-7 7 7 7"/>',
 		receipt: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
 		chart: '<path d="M4 19h16M5 15l4-5 4 3 5-8"/>',
