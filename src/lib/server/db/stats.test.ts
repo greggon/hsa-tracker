@@ -1,0 +1,250 @@
+import { eq } from 'drizzle-orm';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { db } from './index';
+import { documents, expenses, users } from './schema';
+import {
+	auditReceipt,
+	findDuplicateExpenseIds,
+	getUnreimbursedTotalCents,
+	getVaultStats
+} from './stats';
+
+describe('against a real database', () => {
+	const NOW = new Date('2026-09-13T12:00:00');
+	const OWNER = 1;
+	const STRANGER = 2;
+
+	beforeAll(() => {
+		db.delete(documents).run();
+		db.delete(expenses).run();
+		db.delete(users).run();
+
+		db.insert(users)
+			.values([
+				{ id: OWNER, email: 'owner@example.test', hsaOpenedOn: '2024-01-01' },
+				{ id: STRANGER, email: 'stranger@example.test' }
+			])
+			.run();
+
+		db.insert(expenses)
+			.values([
+				{
+					id: 1,
+					userId: OWNER,
+					serviceDate: '2024-05-01',
+					amountCents: 10000,
+					provider: 'Complete Clinic'
+				},
+				{
+					id: 2,
+					userId: OWNER,
+					serviceDate: '2026-02-01',
+					amountCents: 5000,
+					provider: 'Also Complete'
+				},
+				// each of the three ways a receipt can be incomplete
+				{
+					id: 3,
+					userId: OWNER,
+					serviceDate: '2026-03-01',
+					amountCents: null,
+					provider: 'LensCrafters'
+				},
+				{ id: 4, userId: OWNER, serviceDate: '2026-04-01', amountCents: 2500, provider: null },
+				{
+					id: 5,
+					userId: OWNER,
+					serviceDate: '2026-05-01',
+					amountCents: 1000,
+					provider: 'No Image Co'
+				},
+				// neither of these may reach any figure
+				{
+					id: 6,
+					userId: OWNER,
+					serviceDate: '2026-06-01',
+					amountCents: 99999,
+					provider: 'Reimbursed',
+					reimbursedAt: new Date('2026-06-02')
+				},
+				{
+					id: 7,
+					userId: OWNER,
+					serviceDate: '2026-07-01',
+					amountCents: 88888,
+					provider: 'Deleted',
+					deletedAt: new Date('2026-07-02')
+				},
+				// nor may another user's ledger
+				{
+					id: 8,
+					userId: STRANGER,
+					serviceDate: '2026-01-01',
+					amountCents: 77777,
+					provider: 'Not Yours'
+				}
+			])
+			.run();
+
+		// Expense 5 deliberately has no document.
+		db.insert(documents)
+			.values(
+				[1, 2, 3, 4].map((expenseId) => ({
+					userId: OWNER,
+					expenseId,
+					storageKey: `${expenseId}.jpg`,
+					mimeType: 'image/jpeg',
+					byteSize: 10,
+					sha256: `hash-${expenseId}`,
+					isPrimary: 1
+				}))
+			)
+			.run();
+	});
+
+	describe('getVaultStats', () => {
+		it('totals only unreimbursed, undeleted rows with a known amount', () => {
+			const v = getVaultStats(OWNER, NOW);
+			expect(v.totalCents).toBe(10000 + 5000 + 2500 + 1000);
+			expect(v.receiptCount).toBe(5);
+			expect(v.oldestServiceDate).toBe('2024-05-01');
+			expect(v.currentYearCents).toBe(5000 + 2500 + 1000);
+		});
+
+		it('splits what is provable from what is merely counted', () => {
+			const v = getVaultStats(OWNER, NOW);
+			expect(v.documentedCents).toBe(10000 + 5000);
+			expect(v.undocumentedCents).toBe(2500 + 1000);
+		});
+
+		it('names every missing field, newest first', () => {
+			const v = getVaultStats(OWNER, NOW);
+			expect(v.incomplete.map((r) => r.id)).toEqual([5, 4, 3]);
+			expect(v.incomplete.find((r) => r.id === 3)?.reasons).toEqual(['amount']);
+			expect(v.incomplete.find((r) => r.id === 4)?.reasons).toEqual(['provider']);
+			expect(v.incomplete.find((r) => r.id === 5)?.reasons).toEqual(['document']);
+		});
+
+		it('builds a daily line and an annual axis', () => {
+			const v = getVaultStats(OWNER, NOW);
+			expect(v.days.map((d) => d.date)).toEqual([
+				'2024-05-01',
+				'2026-02-01',
+				'2026-04-01',
+				'2026-05-01'
+			]);
+			expect(v.days.map((d) => d.cumulativeCents)).toEqual([10000, 15000, 17500, 18500]);
+			expect(v.chart.ticks.map((t) => t.label)).toEqual(['2024', '2025', '2026']);
+			expect(v.chart.years).toEqual([2024, 2025, 2026]);
+			expect(v.chart.linePath.endsWith('H1000')).toBe(true);
+		});
+
+		it('keeps one user out of another’s ledger', () => {
+			expect(getVaultStats(STRANGER, NOW).totalCents).toBe(77777);
+		});
+
+		it('returns zeroes rather than crashing on an empty ledger', () => {
+			const v = getVaultStats(999, NOW);
+			expect(v).toMatchObject({ totalCents: 0, receiptCount: 0, oldestServiceDate: null });
+			expect(v.days).toEqual([]);
+			expect(v.chart.linePath).toBe('');
+		});
+	});
+
+	describe('getUnreimbursedTotalCents', () => {
+		it('matches the vault total, so the capture flow can show it move', () => {
+			expect(getUnreimbursedTotalCents(OWNER)).toBe(getVaultStats(OWNER, NOW).totalCents);
+		});
+	});
+
+	describe('auditReceipt', () => {
+		it('passes a complete receipt', () => {
+			expect(auditReceipt(OWNER, 1)).toEqual({
+				hasImage: true,
+				fieldsComplete: true,
+				afterHsaOpened: true,
+				notReimbursed: true,
+				notDuplicate: true
+			});
+		});
+
+		it('reports an unreadable amount as an incomplete field', () => {
+			expect(auditReceipt(OWNER, 3)?.fieldsComplete).toBe(false);
+		});
+
+		it('reports a missing image', () => {
+			expect(auditReceipt(OWNER, 5)?.hasImage).toBe(false);
+		});
+
+		it('cannot answer the open-date question when no date is recorded', () => {
+			expect(auditReceipt(STRANGER, 8)?.afterHsaOpened).toBeNull();
+		});
+
+		it('fails a receipt dated before the account opened', () => {
+			db.insert(expenses)
+				.values({
+					id: 20,
+					userId: OWNER,
+					serviceDate: '2020-01-01',
+					amountCents: 100,
+					provider: 'Too Early'
+				})
+				.run();
+			expect(auditReceipt(OWNER, 20)?.afterHsaOpened).toBe(false);
+		});
+
+		it('does not find a deleted or foreign receipt', () => {
+			expect(auditReceipt(OWNER, 7)).toBeNull();
+			expect(auditReceipt(OWNER, 8)).toBeNull();
+		});
+	});
+
+	describe('findDuplicateExpenseIds', () => {
+		it('finds none among distinct images', () => {
+			expect([...findDuplicateExpenseIds(OWNER)]).toEqual([]);
+		});
+
+		it('flags both sides of a pair sharing one image', () => {
+			db.insert(expenses)
+				.values([
+					{
+						id: 10,
+						userId: OWNER,
+						serviceDate: '2026-08-01',
+						amountCents: 4200,
+						provider: 'Dupe A'
+					},
+					{
+						id: 11,
+						userId: OWNER,
+						serviceDate: '2026-08-02',
+						amountCents: 4200,
+						provider: 'Dupe B'
+					}
+				])
+				.run();
+			db.insert(documents)
+				.values(
+					[10, 11].map((expenseId) => ({
+						userId: OWNER,
+						expenseId,
+						storageKey: `${expenseId}.jpg`,
+						mimeType: 'image/jpeg',
+						byteSize: 10,
+						sha256: 'identical-bytes',
+						isPrimary: 1
+					}))
+				)
+				.run();
+
+			expect([...findDuplicateExpenseIds(OWNER)].sort((a, b) => a - b)).toEqual([10, 11]);
+			expect(auditReceipt(OWNER, 10)?.notDuplicate).toBe(false);
+		});
+
+		it('stops flagging the survivor once its twin is deleted', () => {
+			db.update(expenses).set({ deletedAt: new Date() }).where(eq(expenses.id, 11)).run();
+			expect([...findDuplicateExpenseIds(OWNER)]).toEqual([]);
+			expect(auditReceipt(OWNER, 10)?.notDuplicate).toBe(true);
+		});
+	});
+});

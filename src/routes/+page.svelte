@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import Cropper from 'svelte-easy-crop';
 	import Icon from '$lib/components/Icon.svelte';
+	import { projectToViewBox, readChartAt } from '$lib/chart';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -167,6 +168,53 @@
 		document: 'Needs image'
 	};
 
+	/** What the pointer is over, in chart coordinates plus the values there. */
+	let hover = $state<{
+		xPercent: number;
+		yPercent: number;
+		date: string;
+		cumulativeCents: number;
+		dayCents: number | null;
+	} | null>(null);
+
+	function onChartMove(event: PointerEvent) {
+		const chart = data.stats.chart;
+		if (chartMode !== 'cumulative' || data.stats.days.length === 0) {
+			hover = null;
+			return;
+		}
+
+		const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		if (box.width === 0) return;
+		const fraction = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+
+		const reading = readChartAt(data.stats.days, chart.startDate, chart.endDate, fraction);
+		if (!reading) {
+			hover = null;
+			return;
+		}
+
+		hover = {
+			xPercent: fraction * 100,
+			// The viewBox is 200 tall and stretches to fill, so a percentage of it
+			// maps exactly onto the rendered box however wide that is.
+			yPercent: (projectToViewBox(reading.cumulativeCents, chart.cumulativeMaxCents) / 200) * 100,
+			date: reading.date,
+			cumulativeCents: reading.cumulativeCents,
+			dayCents: reading.dayCents
+		};
+	}
+
+	const hoverDate = $derived(
+		hover
+			? new Date(hover.date + 'T00:00:00').toLocaleDateString('en-US', {
+					month: 'short',
+					day: 'numeric',
+					year: 'numeric'
+				})
+			: ''
+	);
+
 	const hero = $derived(splitMoney(data.stats.totalCents));
 	const axisLabel = $derived(
 		data.stats.chart.years.length > 0
@@ -231,7 +279,7 @@
 		</div>
 	</header>
 
-	<div class="main">
+	<div class="main" class:has-rail={data.stats.incomplete.length > 0}>
 		<section class="hero">
 			<div class="kick accent">Total eligible · unreimbursed</div>
 			<div class="total">
@@ -261,7 +309,6 @@
 			</div>
 
 			<div class="chart-head">
-				<span class="kick">The claim, built over time</span>
 				{#if data.stats.days.length > 0}
 					<span class="seg">
 						<label class="seg-opt">
@@ -279,35 +326,53 @@
 			{#if data.stats.days.length === 0}
 				<p class="chart-empty">Nothing filed yet. The line starts with your first receipt.</p>
 			{:else}
-				<svg
-					class="chart"
-					viewBox="0 0 1000 200"
-					width="100%"
-					height="180"
-					preserveAspectRatio="none"
-					role="img"
-					aria-label={chartMode === 'cumulative'
-						? `Cumulative unreimbursed total by day, ${axisLabel}, reaching ${money(data.stats.totalCents)}`
-						: `Unreimbursed spend per year, ${axisLabel}`}
+				<div
+					class="chart-wrap"
+					onpointermove={onChartMove}
+					onpointerleave={() => (hover = null)}
+					role="presentation"
 				>
-					<defs>
-						<linearGradient id="hsaGrad" x1="0" y1="0" x2="0" y2="1">
-							<stop offset="0" stop-color="var(--color-accent)" stop-opacity=".32" />
-							<stop offset="1" stop-color="var(--color-accent)" stop-opacity="0" />
-						</linearGradient>
-					</defs>
-					<path
-						d="M0 199h1000M0 149h1000M0 99h1000M0 49h1000"
-						class="grid"
-						vector-effect="non-scaling-stroke"
-					/>
-					{#if chartMode === 'cumulative'}
-						<path d={data.stats.chart.areaPath} fill="url(#hsaGrad)" />
-						<path d={data.stats.chart.linePath} class="line" vector-effect="non-scaling-stroke" />
-					{:else}
-						<path d={data.stats.chart.barsPath} class="bars" vector-effect="non-scaling-stroke" />
+					<svg
+						class="chart"
+						viewBox="0 0 1000 200"
+						width="100%"
+						height="180"
+						preserveAspectRatio="none"
+						role="img"
+						aria-label={chartMode === 'cumulative'
+							? `Cumulative unreimbursed total by day, ${axisLabel}, reaching ${money(data.stats.totalCents)}`
+							: `Unreimbursed spend per year, ${axisLabel}`}
+					>
+						<defs>
+							<linearGradient id="hsaGrad" x1="0" y1="0" x2="0" y2="1">
+								<stop offset="0" stop-color="var(--color-accent)" stop-opacity=".32" />
+								<stop offset="1" stop-color="var(--color-accent)" stop-opacity="0" />
+							</linearGradient>
+						</defs>
+						<path
+							d="M0 199h1000M0 149h1000M0 99h1000M0 49h1000"
+							class="grid"
+							vector-effect="non-scaling-stroke"
+						/>
+						{#if chartMode === 'cumulative'}
+							<path d={data.stats.chart.areaPath} fill="url(#hsaGrad)" />
+							<path d={data.stats.chart.linePath} class="line" vector-effect="non-scaling-stroke" />
+						{:else}
+							<path d={data.stats.chart.barsPath} class="bars" vector-effect="non-scaling-stroke" />
+						{/if}
+					</svg>
+					{#if hover}
+						<div class="guide" style="left:{hover.xPercent}%"></div>
+						<div class="dot" style="left:{hover.xPercent}%;top:{hover.yPercent}%"></div>
+						<div class="readout" style="left:{hover.xPercent}%" class:flip={hover.xPercent > 60}>
+							<span class="readout-date">{hoverDate}</span>
+							<span class="readout-total">{money(hover.cumulativeCents)}</span>
+							{#if hover.dayCents}
+								<span class="readout-day">+{money(hover.dayCents)} filed</span>
+							{/if}
+						</div>
 					{/if}
-				</svg>
+				</div>
 				{#if chartMode === 'cumulative'}
 					<!-- Placed by date: a quiet stretch takes the width it actually took. -->
 					<div class="axis axis-timed">
@@ -330,11 +395,9 @@
 			{/if}
 		</section>
 
-		<aside class="rail" id="needs-a-field">
-			<div class="kick">Needs a field · {data.stats.incomplete.length}</div>
-			{#if data.stats.incomplete.length === 0}
-				<p class="rail-note">Every filed receipt has its amount, provider and image.</p>
-			{:else}
+		{#if data.stats.incomplete.length > 0}
+			<aside class="rail" id="needs-a-field">
+				<div class="kick">Needs a field · {data.stats.incomplete.length}</div>
 				<ul class="needs">
 					{#each data.stats.incomplete as r (r.id)}
 						<li>
@@ -352,8 +415,8 @@
 						{money(data.stats.undocumentedCents)} of your total isn't fully documented yet.
 					</p>
 				{/if}
-			{/if}
-		</aside>
+			</aside>
+		{/if}
 	</div>
 
 	<section class="filed-section">
@@ -676,6 +739,11 @@
 	/* — main split — */
 	.main {
 		display: grid;
+		/* The rail is only rendered when something needs a field; without it the
+		   hero takes the full width rather than leaving a reserved gutter. */
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.main.has-rail {
 		grid-template-columns: minmax(0, 1fr) 296px;
 	}
 	.hero {
@@ -731,10 +799,69 @@
 	.chart-head {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: flex-end;
 		gap: var(--space-4);
 		flex-wrap: wrap;
-		margin: 30px 0 12px;
+		min-height: 30px;
+		margin: 24px 0 12px;
+	}
+	/* The readout overlay is HTML, not SVG: preserveAspectRatio="none" would
+	   stretch any text or circle drawn inside the viewBox. Percentages map
+	   exactly onto it, so the marker still lands on the line. */
+	.chart-wrap {
+		position: relative;
+	}
+	.guide {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		width: 1px;
+		background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+		pointer-events: none;
+	}
+	.dot {
+		position: absolute;
+		width: 9px;
+		height: 9px;
+		margin: -4.5px 0 0 -4.5px;
+		border-radius: 99px;
+		background: var(--color-accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+		pointer-events: none;
+	}
+	.readout {
+		position: absolute;
+		top: 0;
+		margin-left: 10px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 7px 10px;
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-md);
+		pointer-events: none;
+		white-space: nowrap;
+	}
+	/* Near the right edge, hang the readout off the other side of the guide. */
+	.readout.flip {
+		margin-left: 0;
+		transform: translateX(-100%) translateX(-10px);
+	}
+	.readout-date {
+		font-size: 11px;
+		color: color-mix(in srgb, var(--color-text) 55%, transparent);
+	}
+	.readout-total {
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 15px;
+		font-variant-numeric: tabular-nums;
+	}
+	.readout-day {
+		font-size: 11px;
+		color: var(--color-accent-300);
+		font-variant-numeric: tabular-nums;
 	}
 	.chart {
 		display: block;

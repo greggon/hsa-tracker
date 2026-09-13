@@ -1,6 +1,7 @@
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+// vitest/config re-exports Vite's defineConfig with the `test` block typed.
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [
@@ -16,5 +17,11 @@ export default defineConfig({
 			adapter: adapter()
 		})
 	],
-	ssr: {external: ['better-sqlite3']}
+	ssr: { external: ['better-sqlite3'] },
+	test: {
+		include: ['src/**/*.test.ts'],
+		setupFiles: ['src/lib/server/db/test-setup.ts'],
+		// better-sqlite3 is a native addon; forks keep each run in its own process.
+		pool: 'forks'
+	}
 });
