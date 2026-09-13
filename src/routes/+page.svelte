@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import Cropper from 'svelte-easy-crop';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { PageProps } from './$types';
@@ -207,8 +208,16 @@
 	<ul class="list">
 		{#each data.expenses as e (e.id)}
 			<li class="row">
-				{#if e.thumb}
-					<img class="thumb" src={e.thumb} alt="" />
+				{#if e.docId && e.hasThumb}
+					<img
+						class="thumb"
+						src={resolve('/documents/[id]', { id: String(e.docId) }) + '?thumb'}
+						alt=""
+						width="48"
+						height="48"
+						loading="lazy"
+						decoding="async"
+					/>
 				{:else}
 					<div class="thumb placeholder"></div>
 				{/if}

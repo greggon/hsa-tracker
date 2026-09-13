@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { documents, expenses } from '$lib/server/db/schema';
 import { fail } from '@sveltejs/kit';
@@ -28,8 +28,11 @@ export const load = ({ locals }) => {
 			provider: expenses.provider,
 			amountCents: expenses.amountCents,
 			reimbursedAt: expenses.reimbursedAt,
-			thumb: documents.thumb,
-			docId: documents.id
+			docId: documents.id,
+			// Only whether a thumbnail exists — the bytes are fetched per row from
+			// /documents/[id]?thumb. Inlining them as base64 data URLs put roughly
+			// 7.6 KB of markup on the page per receipt.
+			hasThumb: sql<number>`(${documents.thumb} is not null)`
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
@@ -37,12 +40,7 @@ export const load = ({ locals }) => {
 		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
 		.all();
 
-	return {
-		expenses: rows.map((r) => ({
-			...r,
-			thumb: r.thumb ? `data:image/jpeg;base64,${(r.thumb as Buffer).toString('base64')}` : null
-		}))
-	};
+	return { expenses: rows };
 };
 
 export const actions = {
