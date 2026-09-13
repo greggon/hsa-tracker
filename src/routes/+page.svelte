@@ -4,10 +4,10 @@
 	import Cropper from 'svelte-easy-crop';
 	import Icon from '$lib/components/Icon.svelte';
 	import { projectToViewBox, readChartAt } from '$lib/chart';
+	import ReceiptList from '$lib/components/ReceiptList.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	type Row = PageProps['data']['expenses'][number];
 	type IncompleteReason = PageProps['data']['stats']['incomplete'][number]['reasons'][number];
 
 	//Add sheet
@@ -55,11 +55,6 @@
 	);
 
 	const visible = $derived(normalised === '' ? matches.slice(0, RECENT) : matches);
-
-	/** Reasons keyed by expense, so a row's status tag agrees with the rail. */
-	const reasonsById = $derived(
-		new Map<number, IncompleteReason[]>(data.stats.incomplete.map((r) => [r.id, r.reasons]))
-	);
 
 	const today = new Date().toLocaleDateString('en-CA');
 
@@ -162,12 +157,6 @@
 		document: 'No receipt image'
 	};
 
-	const REASON_TAG: Record<IncompleteReason, string> = {
-		amount: 'Needs amount',
-		provider: 'Needs provider',
-		document: 'Needs image'
-	};
-
 	/** What the pointer is over, in chart coordinates plus the values there. */
 	let hover = $state<{
 		xPercent: number;
@@ -223,33 +212,6 @@
 	);
 </script>
 
-{#snippet statusTag(e: Row)}
-	{#if e.reimbursedAt}
-		<span class="tag tag-neutral">Reimbursed</span>
-	{:else if reasonsById.get(e.id)}
-		<span class="tag tag-outline">{REASON_TAG[reasonsById.get(e.id)![0]]}</span>
-	{:else}
-		<span class="tag tag-accent">Complete</span>
-	{/if}
-{/snippet}
-
-{#snippet thumb(e: Row, w: number, h: number)}
-	{#if e.docId && e.hasThumb}
-		<img
-			class="thumb"
-			style="width:{w}px;height:{h}px"
-			src={resolve('/documents/[id]', { id: String(e.docId) }) + '?thumb'}
-			alt=""
-			width={w}
-			height={h}
-			loading="lazy"
-			decoding="async"
-		/>
-	{:else}
-		<div class="thumb placeholder" style="width:{w}px;height:{h}px"></div>
-	{/if}
-{/snippet}
-
 <div class="app">
 	<header class="nav">
 		<span class="brand">
@@ -258,10 +220,7 @@
 		</span>
 		<nav class="links">
 			<a href={resolve('/')} aria-current="page">Vault</a>
-			<!-- In the design but not built yet, so rendered inert rather than as
-			     links that would 404. -->
-			<span class="soon" aria-disabled="true" title="Not built yet">Receipts</span>
-			<span class="soon" aria-disabled="true" title="Not built yet">Export</span>
+			<a href={resolve('/receipts')}>Receipts</a>
 		</nav>
 		<div class="nav-right">
 			<label class="visually-hidden" for="vault-search">Search provider or amount</label>
@@ -422,13 +381,13 @@
 	<section class="filed-section">
 		<div class="filed-head">
 			<span class="kick">{normalised === '' ? 'Recently filed' : 'Matching receipts'}</span>
-			<span class="filed-count">
-				{#if normalised === ''}
-					{data.expenses.length} receipt{data.expenses.length === 1 ? '' : 's'} filed
-				{:else}
-					{matches.length} of {data.expenses.length}
-				{/if}
-			</span>
+			{#if normalised === ''}
+				<a class="filed-count" href={resolve('/receipts')}>
+					All {data.expenses.length} receipt{data.expenses.length === 1 ? '' : 's'} →
+				</a>
+			{:else}
+				<span class="filed-count">{matches.length} of {data.expenses.length}</span>
+			{/if}
 		</div>
 
 		{#if data.expenses.length === 0}
@@ -436,60 +395,8 @@
 				No receipts yet.
 				<button type="button" class="btn btn-ghost" onclick={openAdd}>File your first one.</button>
 			</p>
-		{:else if visible.length === 0}
-			<p class="empty">Nothing matches “{query}”.</p>
 		{:else}
-			<div class="table-wrap">
-				<table class="table">
-					<thead>
-						<tr>
-							<th class="col-thumb"><span class="visually-hidden">Receipt image</span></th>
-							<th>Date of service</th>
-							<th>Provider</th>
-							<th class="right">Amount</th>
-							<th class="right col-status">Status</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each visible as e (e.id)}
-							<tr>
-								<td>{@render thumb(e, 26, 33)}</td>
-								<td class="date">{pretty(e.serviceDate)}</td>
-								<td>
-									<a class="rowlink" href={resolve('/receipts/[id]', { id: String(e.id) })}>
-										{e.provider ?? 'No provider'}
-									</a>
-								</td>
-								<td class="right amount" class:unread={e.amountCents == null}>
-									{money(e.amountCents)}
-								</td>
-								<td class="right">{@render statusTag(e)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-
-			<!-- Same rows, one column, thumb-reachable: the phone layout. -->
-			<ul class="cards">
-				{#each visible as e (e.id)}
-					<li>
-						<a class="cardrow" href={resolve('/receipts/[id]', { id: String(e.id) })}>
-							{@render thumb(e, 34, 42)}
-							<span class="cardrow-main">
-								<span class="cardrow-provider">{e.provider ?? 'No provider'}</span>
-								<span class="cardrow-date">{pretty(e.serviceDate)}</span>
-							</span>
-							<span class="cardrow-right">
-								<span class="amount" class:unread={e.amountCents == null}>
-									{money(e.amountCents)}
-								</span>
-								{@render statusTag(e)}
-							</span>
-						</a>
-					</li>
-				{/each}
-			</ul>
+			<ReceiptList rows={visible} empty="Nothing matches “{query}”." />
 		{/if}
 	</section>
 </div>
@@ -497,8 +404,8 @@
 <!-- Bottom tab bar: phones only. -->
 <nav class="tabs" aria-label="Sections">
 	<span class="tab current"><Icon name="vault" size={21} width={1.7} />Vault</span>
-	<span class="tab soon" aria-disabled="true"
-		><Icon name="receipt" size={21} width={1.7} />Receipts</span
+	<a class="tab" href={resolve('/receipts')}
+		><Icon name="receipt" size={21} width={1.7} />Receipts</a
 	>
 	<button class="shutter" onclick={openCamera} aria-label="File a receipt">
 		<Icon name="camera" size={24} />
@@ -971,94 +878,8 @@
 		font-size: 12.5px;
 		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
-	.table-wrap {
-		overflow-x: auto;
-	}
-	.right {
-		text-align: right;
-	}
-	.col-thumb {
-		width: 38px;
-	}
-	.col-status {
-		width: 130px;
-	}
-	.date {
-		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--color-text) 80%, transparent);
-	}
-	.amount {
-		font-variant-numeric: tabular-nums;
-	}
-	.amount.unread {
-		color: color-mix(in srgb, var(--color-text) 40%, transparent);
-	}
-	.thumb {
-		object-fit: cover;
-		border-radius: 3px;
-		box-shadow: inset 0 0 0 1px var(--color-divider);
-		flex: none;
-	}
-	.placeholder {
-		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
-	}
-	.rowlink {
-		color: inherit;
-		text-decoration: none;
-	}
-	.rowlink:hover {
-		color: var(--color-accent);
-	}
 	.empty {
 		color: color-mix(in srgb, var(--color-text) 55%, transparent);
-	}
-
-	/* — phone row list — */
-	.cards {
-		display: none;
-		list-style: none;
-		margin: 0;
-		padding: 0;
-	}
-	.cardrow {
-		display: flex;
-		align-items: center;
-		gap: 13px;
-		padding: 13px 0;
-		color: inherit;
-		text-decoration: none;
-		background: linear-gradient(
-				to right,
-				color-mix(in srgb, var(--color-text) 10%, transparent),
-				color-mix(in srgb, var(--color-text) 10%, transparent)
-			)
-			no-repeat bottom / 100% 1px;
-	}
-	.cardrow-main {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.cardrow-provider {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 14px;
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-	.cardrow-date {
-		font-size: 11.5px;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
-	}
-	.cardrow-right {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 3px;
-		font-size: 14px;
 	}
 
 	/* — bottom tab bar — */
@@ -1133,12 +954,6 @@
 		}
 		.tabs {
 			display: flex;
-		}
-		.table-wrap {
-			display: none;
-		}
-		.cards {
-			display: block;
 		}
 		.nav {
 			padding: 14px 20px;

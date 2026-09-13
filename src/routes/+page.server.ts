@@ -1,37 +1,18 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { documents, expenses } from '$lib/server/db/schema';
 import { fail } from '@sveltejs/kit';
 import { makeDerivatives } from '$lib/server/images';
 import { makeKey, sha256, writeAtomic } from '$lib/server/storage';
-import { getUnreimbursedTotalCents, getVaultStats } from '$lib/server/db/stats';
+import { getUnreimbursedTotalCents, getVaultStats, listReceipts } from '$lib/server/db/stats';
 import { AMOUNT_ERROR, toCents } from '$lib/server/money';
 
-export const load = ({ locals }) => {
-	const rows = db
-		.select({
-			id: expenses.id,
-			serviceDate: expenses.serviceDate,
-			provider: expenses.provider,
-			amountCents: expenses.amountCents,
-			reimbursedAt: expenses.reimbursedAt,
-			docId: documents.id,
-			// Only whether a thumbnail exists — the bytes are fetched per row from
-			// /documents/[id]?thumb. Inlining them as base64 data URLs put roughly
-			// 7.6 KB of markup on the page per receipt.
-			hasThumb: sql<number>`(${documents.thumb} is not null)`
-		})
-		.from(expenses)
-		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
-		.where(and(eq(expenses.userId, locals.userId), isNull(expenses.deletedAt)))
-		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
-		.all();
-
+export const load = ({ locals }) => ({
+	expenses: listReceipts(locals.userId),
 	// A second pass over the same table. Kept separate because the figures and
 	// the list have genuinely different shapes, and at a personal ledger's scale
 	// the extra scan is not worth entangling them for.
-	return { expenses: rows, stats: getVaultStats(locals.userId) };
-};
+	stats: getVaultStats(locals.userId)
+});
 
 export const actions = {
 	create: async ({ request, locals }) => {

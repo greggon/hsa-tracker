@@ -1,0 +1,1 @@
+ALTER TABLE `users` DROP COLUMN `hsa_opened_on`;

@@ -35,7 +35,7 @@
 		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 	}
 
-	type CheckState = 'pass' | 'fail' | 'unknown';
+	type CheckState = 'pass' | 'fail';
 
 	/**
 	 * Every line is answered from the record. The artboard's first line claimed a
@@ -50,20 +50,6 @@
 		{
 			state: data.audit.fieldsComplete ? 'pass' : 'fail',
 			label: data.audit.fieldsComplete ? 'All three fields filled' : 'A field is still missing'
-		},
-		{
-			state:
-				data.audit.afterHsaOpened === null
-					? 'unknown'
-					: data.audit.afterHsaOpened
-						? 'pass'
-						: 'fail',
-			label:
-				data.audit.afterHsaOpened === null
-					? 'HSA open date not recorded, so this cannot be checked'
-					: data.audit.afterHsaOpened
-						? 'Dated after your HSA was opened'
-						: 'Dated before your HSA was opened'
 		},
 		{
 			state: data.audit.notReimbursed && data.audit.notDuplicate ? 'pass' : 'fail',
@@ -84,7 +70,7 @@
 
 <div class="app">
 	<header class="bar">
-		<a class="btn btn-ghost back" href={resolve('/')}>
+		<a class="btn btn-ghost back" href={resolve('/receipts')}>
 			<Icon name="chevronLeft" size={15} width={2} />
 			All receipts
 		</a>
@@ -195,11 +181,7 @@
 					<ul>
 						{#each checks as c (c.label)}
 							<li class={c.state}>
-								<Icon
-									name={c.state === 'pass' ? 'check' : c.state === 'fail' ? 'cross' : 'dash'}
-									size={15}
-									width={2}
-								/>
+								<Icon name={c.state === 'pass' ? 'check' : 'cross'} size={15} width={2} />
 								{c.label}
 							</li>
 						{/each}
@@ -384,9 +366,6 @@
 	}
 	.audit li.fail {
 		color: var(--color-danger);
-	}
-	.audit li.unknown {
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
 	}
 
 	.actions {

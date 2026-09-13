@@ -1,8 +1,8 @@
-import { and, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, ne, sql } from 'drizzle-orm';
 import { buildChartGeometry, buildDailySeries, buildSeries } from '$lib/chart';
 import type { ChartGeometry, DayPoint, YearPoint } from '$lib/chart';
 import { db } from './index';
-import { documents, expenses, users } from './schema';
+import { documents, expenses } from './schema';
 
 export type { ChartGeometry, ChartReading, DayPoint, Tick, YearPoint } from '$lib/chart';
 
@@ -139,6 +139,60 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
 	};
 }
 
+/** A receipt as both the vault and the receipts list render it. */
+export type ReceiptRow = {
+	id: number;
+	serviceDate: string;
+	provider: string | null;
+	amountCents: number | null;
+	reimbursedAt: Date | null;
+	docId: number | null;
+	hasThumb: boolean;
+	/** Empty when nothing is missing. */
+	reasons: IncompleteReason[];
+};
+
+/**
+ * Live receipts, newest first, optionally narrowed to one filing year.
+ *
+ * Shared so a row's status tag means the same thing wherever it is drawn. The
+ * thumbnail is reported as a flag, not bytes: they are fetched per row from
+ * /documents/[id]?thumb rather than inlined into the page.
+ */
+export function listReceipts(userId: number, options: { year?: number } = {}): ReceiptRow[] {
+	const filters = [eq(expenses.userId, userId), isNull(expenses.deletedAt)];
+	if (options.year) filters.push(like(expenses.serviceDate, `${options.year}-%`));
+
+	return db
+		.select({
+			id: expenses.id,
+			serviceDate: expenses.serviceDate,
+			provider: expenses.provider,
+			amountCents: expenses.amountCents,
+			reimbursedAt: expenses.reimbursedAt,
+			docId: documents.id,
+			hasThumb: sql<number>`(${documents.thumb} is not null)`
+		})
+		.from(expenses)
+		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
+		.where(and(...filters))
+		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
+		.all()
+		.map((r) => ({ ...r, hasThumb: r.hasThumb === 1, reasons: missingFrom(r) }));
+}
+
+/** Every year the user has filed something against, newest first. */
+export function getFilingYears(userId: number): number[] {
+	return db
+		.selectDistinct({ year: sql<string>`substr(${expenses.serviceDate}, 1, 4)` })
+		.from(expenses)
+		.where(and(eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.all()
+		.map((r) => Number(r.year))
+		.filter((y) => Number.isFinite(y))
+		.sort((a, b) => b - a);
+}
+
 /**
  * Just the hero figure, for callers that need it without the rest of the vault.
  *
@@ -195,15 +249,11 @@ export function findDuplicateExpenseIds(userId: number): Set<number> {
 /**
  * The receipt detail screen's "Will this hold up?" checks.
  *
- * Each is something the database can actually answer. `afterHsaOpened` is
- * `null` rather than false when the account has no recorded open date — an
- * unanswerable question is not a failed one.
+ * Each is something the database can actually answer.
  */
 export type ReceiptAudit = {
 	hasImage: boolean;
 	fieldsComplete: boolean;
-	/** null when the HSA open date has never been recorded. */
-	afterHsaOpened: boolean | null;
 	notReimbursed: boolean;
 	notDuplicate: boolean;
 };
@@ -224,10 +274,6 @@ export function auditReceipt(userId: number, expenseId: number): ReceiptAudit | 
 		.get();
 
 	if (!row) return null;
-
-	const openedOn =
-		db.select({ hsaOpenedOn: users.hsaOpenedOn }).from(users).where(eq(users.id, userId)).get()
-			?.hsaOpenedOn ?? null;
 
 	// A twin is the same bytes filed against a different *live* expense. The join
 	// matters: without it a receipt stays flagged as a duplicate of one that was
@@ -255,7 +301,6 @@ export function auditReceipt(userId: number, expenseId: number): ReceiptAudit | 
 	return {
 		hasImage: row.docId != null,
 		fieldsComplete: row.amountCents != null && !!row.provider?.trim() && !!row.serviceDate?.trim(),
-		afterHsaOpened: openedOn == null ? null : row.serviceDate >= openedOn,
 		notReimbursed: row.reimbursedAt == null,
 		notDuplicate
 	};

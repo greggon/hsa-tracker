@@ -6,8 +6,6 @@ const now = sql`(unixepoch())`;
 export const users = sqliteTable('users', {
 	id: integer('id').primaryKey({ autoIncrement: true }),
 	email: text('email').notNull().unique(),
-	/** YYYY-MM-DD. Backs the receipt checklist's "Dated after your HSA was opened". */
-	hsaOpenedOn: text('hsa_opened_on'),
 	createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(now)
 });
 

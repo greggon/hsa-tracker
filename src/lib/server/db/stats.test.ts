@@ -5,8 +5,10 @@ import { documents, expenses, users } from './schema';
 import {
 	auditReceipt,
 	findDuplicateExpenseIds,
+	getFilingYears,
 	getUnreimbursedTotalCents,
-	getVaultStats
+	getVaultStats,
+	listReceipts
 } from './stats';
 
 describe('against a real database', () => {
@@ -21,7 +23,7 @@ describe('against a real database', () => {
 
 		db.insert(users)
 			.values([
-				{ id: OWNER, email: 'owner@example.test', hsaOpenedOn: '2024-01-01' },
+				{ id: OWNER, email: 'owner@example.test' },
 				{ id: STRANGER, email: 'stranger@example.test' }
 			])
 			.run();
@@ -151,6 +153,49 @@ describe('against a real database', () => {
 		});
 	});
 
+	describe('listReceipts', () => {
+		it('returns live receipts newest first, reimbursed ones included', () => {
+			const rows = listReceipts(OWNER);
+			expect(rows.map((r) => r.id)).toEqual([6, 5, 4, 3, 2, 1]);
+		});
+
+		it('leaves out deleted receipts and other people\u2019s', () => {
+			const ids = listReceipts(OWNER).map((r) => r.id);
+			expect(ids).not.toContain(7);
+			expect(ids).not.toContain(8);
+		});
+
+		it('narrows to one filing year', () => {
+			expect(listReceipts(OWNER, { year: 2024 }).map((r) => r.id)).toEqual([1]);
+			expect(listReceipts(OWNER, { year: 1999 })).toEqual([]);
+		});
+
+		it('carries the same reasons the vault rail shows', () => {
+			const rows = listReceipts(OWNER);
+			expect(rows.find((r) => r.id === 3)?.reasons).toEqual(['amount']);
+			expect(rows.find((r) => r.id === 4)?.reasons).toEqual(['provider']);
+			expect(rows.find((r) => r.id === 5)?.reasons).toEqual(['document']);
+			expect(rows.find((r) => r.id === 1)?.reasons).toEqual([]);
+		});
+
+		it('reports the thumbnail as a flag, never the bytes', () => {
+			const row = listReceipts(OWNER).find((r) => r.id === 1)!;
+			expect(row.hasThumb).toBe(false); // seeded without a thumb blob
+			expect(row).not.toHaveProperty('thumb');
+			expect(typeof row.hasThumb).toBe('boolean');
+		});
+	});
+
+	describe('getFilingYears', () => {
+		it('lists every year filed against, newest first', () => {
+			expect(getFilingYears(OWNER)).toEqual([2026, 2024]);
+		});
+
+		it('is empty for someone with nothing filed', () => {
+			expect(getFilingYears(999)).toEqual([]);
+		});
+	});
+
 	describe('getUnreimbursedTotalCents', () => {
 		it('matches the vault total, so the capture flow can show it move', () => {
 			expect(getUnreimbursedTotalCents(OWNER)).toBe(getVaultStats(OWNER, NOW).totalCents);
@@ -162,7 +207,6 @@ describe('against a real database', () => {
 			expect(auditReceipt(OWNER, 1)).toEqual({
 				hasImage: true,
 				fieldsComplete: true,
-				afterHsaOpened: true,
 				notReimbursed: true,
 				notDuplicate: true
 			});
@@ -174,23 +218,6 @@ describe('against a real database', () => {
 
 		it('reports a missing image', () => {
 			expect(auditReceipt(OWNER, 5)?.hasImage).toBe(false);
-		});
-
-		it('cannot answer the open-date question when no date is recorded', () => {
-			expect(auditReceipt(STRANGER, 8)?.afterHsaOpened).toBeNull();
-		});
-
-		it('fails a receipt dated before the account opened', () => {
-			db.insert(expenses)
-				.values({
-					id: 20,
-					userId: OWNER,
-					serviceDate: '2020-01-01',
-					amountCents: 100,
-					provider: 'Too Early'
-				})
-				.run();
-			expect(auditReceipt(OWNER, 20)?.afterHsaOpened).toBe(false);
 		});
 
 		it('does not find a deleted or foreign receipt', () => {
