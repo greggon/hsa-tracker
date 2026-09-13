@@ -4,7 +4,7 @@ import { documents, expenses } from '$lib/server/db/schema';
 import { fail } from '@sveltejs/kit';
 import { makeDerivatives } from '$lib/server/images';
 import { makeKey, sha256, writeAtomic } from '$lib/server/storage';
-import { getVaultStats } from '$lib/server/db/stats';
+import { getUnreimbursedTotalCents, getVaultStats } from '$lib/server/db/stats';
 import { AMOUNT_ERROR, toCents } from '$lib/server/money';
 
 export const load = ({ locals }) => {
@@ -51,6 +51,8 @@ export const actions = {
 		} catch {
 			return fail(400, { error: AMOUNT_ERROR });
 		}
+
+		const totalBeforeCents = getUnreimbursedTotalCents(locals.userId);
 
 		let doc: typeof documents.$inferInsert | null = null;
 
@@ -122,6 +124,16 @@ export const actions = {
 			return row.id;
 		});
 
-		return { success: true, created: expenseId };
+		return {
+			success: true,
+			created: expenseId,
+			filed: {
+				amountCents,
+				provider,
+				serviceDate,
+				totalBeforeCents,
+				totalAfterCents: totalBeforeCents + (amountCents ?? 0)
+			}
+		};
 	}
 };

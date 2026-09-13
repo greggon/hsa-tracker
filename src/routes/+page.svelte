@@ -6,11 +6,10 @@
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
-	// Derived from the loaded shape rather than imported from $lib/server, which
-	// client code may not reach.
+	type Row = PageProps['data']['expenses'][number];
 	type IncompleteReason = PageProps['data']['stats']['incomplete'][number]['reasons'][number];
 
-	//Add dialog
+	//Add sheet
 	let addDialogEl = $state<HTMLDialogElement | null>(null);
 	let addError = $state<string | null>(null);
 	let previewUrl = $state<string | null>(null);
@@ -20,6 +19,18 @@
 	let zoom = $state(1);
 	let aspect = $state(3 / 4);
 	let pixels = $state<{ x: number; y: number; width: number; height: number } | null>(null);
+	let amountText = $state('');
+	let cameraInputEl = $state<HTMLInputElement | null>(null);
+
+	/** The sheet is the capture flow: confirm the three fields, then the payoff. */
+	type Filed = {
+		amountCents: number | null;
+		provider: string | null;
+		serviceDate: string;
+		totalBeforeCents: number;
+		totalAfterCents: number;
+	};
+	let filed = $state<Filed | null>(null);
 
 	//Vault
 	let chartMode = $state<'cumulative' | 'year'>('cumulative');
@@ -60,6 +71,8 @@
 		crop = { x: 0, y: 0 };
 		zoom = 1;
 		addError = null;
+		amountText = '';
+		filed = null;
 	}
 
 	function openAdd() {
@@ -67,9 +80,25 @@
 		addDialogEl?.showModal();
 	}
 
+	/**
+	 * The shutter. On a phone this hands straight to the native camera, which is
+	 * a better capture surface than anything reachable from the browser — real
+	 * optics, autofocus and HEIC, with no getUserMedia permission dance.
+	 */
+	function openCamera() {
+		resetAdd();
+		addDialogEl?.showModal();
+		cameraInputEl?.click();
+	}
+
 	function closeAdd() {
 		addDialogEl?.close();
 		resetAdd();
+	}
+
+	function fileAnother() {
+		resetAdd();
+		cameraInputEl?.click();
 	}
 
 	function onPick(e: Event) {
@@ -107,6 +136,14 @@
 			: { whole: full.slice(0, dot), frac: full.slice(dot) };
 	}
 
+	/** Mirrors the server's parse, for the submit button's label only. */
+	const typedAmount = $derived.by(() => {
+		const t = amountText.trim();
+		if (t === '') return null;
+		const n = Math.round(parseFloat(t.replace(/[$,\s]/g, '')) * 100);
+		return Number.isFinite(n) && n > 0 ? n : null;
+	});
+
 	const pretty = (iso: string) =>
 		new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
 			month: 'short',
@@ -138,6 +175,33 @@
 	);
 </script>
 
+{#snippet statusTag(e: Row)}
+	{#if e.reimbursedAt}
+		<span class="tag tag-neutral">Reimbursed</span>
+	{:else if reasonsById.get(e.id)}
+		<span class="tag tag-outline">{REASON_TAG[reasonsById.get(e.id)![0]]}</span>
+	{:else}
+		<span class="tag tag-accent">Complete</span>
+	{/if}
+{/snippet}
+
+{#snippet thumb(e: Row, w: number, h: number)}
+	{#if e.docId && e.hasThumb}
+		<img
+			class="thumb"
+			style="width:{w}px;height:{h}px"
+			src={resolve('/documents/[id]', { id: String(e.docId) }) + '?thumb'}
+			alt=""
+			width={w}
+			height={h}
+			loading="lazy"
+			decoding="async"
+		/>
+	{:else}
+		<div class="thumb placeholder" style="width:{w}px;height:{h}px"></div>
+	{/if}
+{/snippet}
+
 <div class="app">
 	<header class="nav">
 		<span class="brand">
@@ -160,7 +224,7 @@
 				placeholder="Search provider or amount"
 				bind:value={query}
 			/>
-			<button class="btn btn-primary" onclick={openAdd}>
+			<button class="btn btn-primary add-desktop" onclick={openAdd}>
 				<Icon name="plus" size={14} width={2} />
 				Add receipt
 			</button>
@@ -249,6 +313,11 @@
 						<span>{year}</span>
 					{/each}
 				</div>
+				<!-- Every year will not fit on a phone; the span is what matters there. -->
+				<div class="axis axis-compact">
+					<span>{data.stats.chart.years[0]}</span>
+					<span>today</span>
+				</div>
 			{/if}
 		</section>
 
@@ -278,7 +347,7 @@
 		</aside>
 	</div>
 
-	<section class="filed">
+	<section class="filed-section">
 		<div class="filed-head">
 			<span class="kick">{normalised === '' ? 'Recently filed' : 'Matching receipts'}</span>
 			<span class="filed-count">
@@ -312,21 +381,7 @@
 					<tbody>
 						{#each visible as e (e.id)}
 							<tr>
-								<td>
-									{#if e.docId && e.hasThumb}
-										<img
-											class="thumb"
-											src={resolve('/documents/[id]', { id: String(e.docId) }) + '?thumb'}
-											alt=""
-											width="26"
-											height="33"
-											loading="lazy"
-											decoding="async"
-										/>
-									{:else}
-										<div class="thumb placeholder"></div>
-									{/if}
-								</td>
+								<td>{@render thumb(e, 26, 33)}</td>
 								<td class="date">{pretty(e.serviceDate)}</td>
 								<td>
 									<a class="rowlink" href={resolve('/receipts/[id]', { id: String(e.id) })}>
@@ -336,122 +391,202 @@
 								<td class="right amount" class:unread={e.amountCents == null}>
 									{money(e.amountCents)}
 								</td>
-								<td class="right">
-									{#if e.reimbursedAt}
-										<span class="tag tag-neutral">Reimbursed</span>
-									{:else if reasonsById.get(e.id)}
-										<span class="tag tag-outline">{REASON_TAG[reasonsById.get(e.id)![0]]}</span>
-									{:else}
-										<span class="tag tag-accent">Complete</span>
-									{/if}
-								</td>
+								<td class="right">{@render statusTag(e)}</td>
 							</tr>
 						{/each}
 					</tbody>
 				</table>
 			</div>
+
+			<!-- Same rows, one column, thumb-reachable: the phone layout. -->
+			<ul class="cards">
+				{#each visible as e (e.id)}
+					<li>
+						<a class="cardrow" href={resolve('/receipts/[id]', { id: String(e.id) })}>
+							{@render thumb(e, 34, 42)}
+							<span class="cardrow-main">
+								<span class="cardrow-provider">{e.provider ?? 'No provider'}</span>
+								<span class="cardrow-date">{pretty(e.serviceDate)}</span>
+							</span>
+							<span class="cardrow-right">
+								<span class="amount" class:unread={e.amountCents == null}>
+									{money(e.amountCents)}
+								</span>
+								{@render statusTag(e)}
+							</span>
+						</a>
+					</li>
+				{/each}
+			</ul>
 		{/if}
 	</section>
 </div>
 
-<dialog bind:this={addDialogEl} onclose={resetAdd}>
-	<form
-		method="POST"
-		action="?/create"
-		enctype="multipart/form-data"
-		use:enhance={({ formData }) => {
-			if (pixels) {
-				formData.set('cropX', String(Math.round(pixels.x)));
-				formData.set('cropY', String(Math.round(pixels.y)));
-				formData.set('cropW', String(Math.round(pixels.width)));
-				formData.set('cropH', String(Math.round(pixels.height)));
-			}
-			return async ({ result, update }) => {
-				await update({ reset: false });
-				if (result.type === 'success') closeAdd();
-				else if (result.type === 'failure') addError = String(result.data?.error ?? 'Save failed.');
-			};
-		}}
+<!-- Bottom tab bar: phones only. -->
+<nav class="tabs" aria-label="Sections">
+	<span class="tab current"><Icon name="vault" size={21} width={1.7} />Vault</span>
+	<span class="tab soon" aria-disabled="true"
+		><Icon name="receipt" size={21} width={1.7} />Receipts</span
 	>
-		<h2>Add receipt</h2>
+	<button class="shutter" onclick={openCamera} aria-label="File a receipt">
+		<Icon name="camera" size={24} />
+	</button>
+	<span class="tab soon" aria-disabled="true"
+		><Icon name="chart" size={21} width={1.7} />Growth</span
+	>
+	<span class="tab soon" aria-disabled="true"><Icon name="user" size={21} width={1.7} />You</span>
+</nav>
 
-		<div class="file-row">
-			<label class="btn btn-secondary">
-				<Icon name="camera" size={15} />
-				Take photo
-				<input
-					type="file"
-					name="fileCamera"
-					accept="image/*"
-					capture="environment"
-					onchange={onPick}
-					hidden
-				/>
-			</label>
-
-			<label class="btn btn-secondary">
-				<Icon name="receipt" size={15} />
-				Choose file
-				<input
-					type="file"
-					name="filePick"
-					accept="image/*,application/pdf"
-					onchange={onPick}
-					hidden
-				/>
-			</label>
+<dialog class="sheet" bind:this={addDialogEl} onclose={resetAdd}>
+	{#if filed}
+		<!-- The payoff frame: the number moved. -->
+		<div class="done">
+			<div class="done-mark"><Icon name="check" size={30} width={1.8} /></div>
+			<div class="done-title">Filed</div>
+			<p class="done-sub">
+				{filed.provider ?? 'No provider'} · {pretty(filed.serviceDate)} · {money(filed.amountCents)}
+			</p>
+			<div class="done-total">
+				<div class="kick">Total eligible · unreimbursed</div>
+				<div class="done-figure">{money(filed.totalAfterCents)}</div>
+				{#if filed.totalAfterCents !== filed.totalBeforeCents}
+					<div class="done-was">was {money(filed.totalBeforeCents)}</div>
+				{/if}
+			</div>
+			<div class="done-actions">
+				<button class="btn btn-primary btn-block tall" onclick={fileAnother}>Add another</button>
+				<button class="btn btn-secondary btn-block tall" onclick={closeAdd}>Back to my vault</button
+				>
+			</div>
 		</div>
-
-		{#if previewUrl && canCrop}
-			<div class="crop-wrap">
-				<Cropper
-					image={previewUrl}
-					bind:crop
-					bind:zoom
-					{aspect}
-					oncropcomplete={(e) => (pixels = e.pixels)}
-				/>
-			</div>
-			<label class="zoom"
-				>Zoom
-				<input type="range" min="1" max="3" step="0.05" bind:value={zoom} />
-			</label>
-
-			<div class="aspect-row">
-				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 3 / 4)}
-					>Portrait</button
-				>
-				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 1)}>Square</button>
-				<button type="button" class="btn btn-secondary" onclick={() => (aspect = 4 / 3)}
-					>Landscape</button
-				>
-			</div>
-		{:else if pickedFile}
-			<p class="hint">{pickedFile.name} - will upload as-is</p>
-		{/if}
-
-		<label
-			>Amount <span class="opt">leave blank if unreadable</span>
-			<input class="input" name="amount" type="text" inputmode="decimal" />
-		</label>
-		<label
-			>Date of service <input
-				class="input"
-				name="serviceDate"
-				type="date"
-				value={today}
-				required
-			/></label
+	{:else}
+		<form
+			method="POST"
+			action="?/create"
+			enctype="multipart/form-data"
+			use:enhance={({ formData }) => {
+				if (pixels) {
+					formData.set('cropX', String(Math.round(pixels.x)));
+					formData.set('cropY', String(Math.round(pixels.y)));
+					formData.set('cropW', String(Math.round(pixels.width)));
+					formData.set('cropH', String(Math.round(pixels.height)));
+				}
+				return async ({ result, update }) => {
+					await update({ reset: false });
+					if (result.type === 'success') {
+						const next = result.data?.filed as Filed | undefined;
+						if (previewUrl) URL.revokeObjectURL(previewUrl);
+						previewUrl = null;
+						pickedFile = null;
+						canCrop = false;
+						addError = null;
+						amountText = '';
+						if (next) filed = next;
+						else closeAdd();
+					} else if (result.type === 'failure') {
+						addError = String(result.data?.error ?? 'Save failed.');
+					}
+				};
+			}}
 		>
-		<label>Provider <input class="input" name="provider" type="text" /></label>
+			<header class="sheet-head">
+				<button type="button" class="btn btn-ghost" onclick={closeAdd}>Cancel</button>
+				<span class="sheet-title">{pickedFile ? 'Confirm three things' : 'New receipt'}</span>
+				<span class="sheet-spacer"></span>
+			</header>
 
-		{#if addError}<p class="error">{addError}</p>{/if}
+			<div class="sheet-body">
+				<div class="file-row">
+					<label class="btn btn-secondary">
+						<Icon name="camera" size={15} />
+						{pickedFile ? 'Retake' : 'Take photo'}
+						<input
+							bind:this={cameraInputEl}
+							type="file"
+							name="fileCamera"
+							accept="image/*"
+							capture="environment"
+							onchange={onPick}
+							hidden
+						/>
+					</label>
 
-		<div class="actions">
-			<button type="button" class="btn btn-secondary" onclick={closeAdd}>Cancel</button>
-			<button type="submit" class="btn btn-primary">Save receipt</button>
-		</div>
-	</form>
+					<label class="btn btn-secondary">
+						<Icon name="receipt" size={15} />
+						Choose file
+						<input
+							type="file"
+							name="filePick"
+							accept="image/*,application/pdf"
+							onchange={onPick}
+							hidden
+						/>
+					</label>
+				</div>
+
+				{#if previewUrl && canCrop}
+					<div class="crop-wrap">
+						<Cropper
+							image={previewUrl}
+							bind:crop
+							bind:zoom
+							{aspect}
+							oncropcomplete={(e) => (pixels = e.pixels)}
+						/>
+					</div>
+					<label class="zoom"
+						>Zoom
+						<input type="range" min="1" max="3" step="0.05" bind:value={zoom} />
+					</label>
+
+					<div class="aspect-row">
+						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 3 / 4)}
+							>Portrait</button
+						>
+						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 1)}
+							>Square</button
+						>
+						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 4 / 3)}
+							>Landscape</button
+						>
+					</div>
+				{:else if pickedFile}
+					<p class="hint">{pickedFile.name} - will upload as-is</p>
+				{/if}
+
+				<label class="fld hero-field"
+					>Amount <span class="opt">leave blank if unreadable</span>
+					<input
+						class="input amount-input"
+						name="amount"
+						type="text"
+						inputmode="decimal"
+						placeholder="$0.00"
+						bind:value={amountText}
+					/>
+				</label>
+				<label class="fld"
+					>Date of service
+					<input class="input" name="serviceDate" type="date" value={today} required />
+				</label>
+				<label class="fld"
+					>Provider
+					<input class="input" name="provider" type="text" />
+				</label>
+
+				{#if addError}<p class="error">{addError}</p>{/if}
+			</div>
+
+			<footer class="sheet-foot">
+				<button type="button" class="btn btn-secondary cancel-desktop" onclick={closeAdd}>
+					Cancel
+				</button>
+				<button type="submit" class="btn btn-primary submit">
+					{typedAmount == null ? 'Save receipt' : `Add ${money(typedAmount)} to my total`}
+				</button>
+			</footer>
+		</form>
+	{/if}
 </dialog>
 
 <style>
@@ -549,6 +684,7 @@
 		align-items: flex-end;
 		gap: 14px;
 		margin-top: 12px;
+		flex-wrap: wrap;
 	}
 	.figure {
 		font-family: var(--font-heading);
@@ -587,6 +723,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		gap: var(--space-4);
+		flex-wrap: wrap;
 		margin: 30px 0 12px;
 	}
 	.chart {
@@ -615,6 +753,9 @@
 		margin-top: 9px;
 		font-size: 10.5px;
 		color: color-mix(in srgb, var(--color-text) 38%, transparent);
+	}
+	.axis-compact {
+		display: none;
 	}
 	.chart-empty {
 		margin: 0;
@@ -667,7 +808,7 @@
 	}
 
 	/* — recently filed — */
-	.filed {
+	.filed-section {
 		padding: 6px 26px 26px;
 	}
 	.filed-head {
@@ -703,11 +844,10 @@
 		color: color-mix(in srgb, var(--color-text) 40%, transparent);
 	}
 	.thumb {
-		width: 26px;
-		height: 33px;
 		object-fit: cover;
 		border-radius: 3px;
 		box-shadow: inset 0 0 0 1px var(--color-divider);
+		flex: none;
 	}
 	.placeholder {
 		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
@@ -721,6 +861,94 @@
 	}
 	.empty {
 		color: color-mix(in srgb, var(--color-text) 55%, transparent);
+	}
+
+	/* — phone row list — */
+	.cards {
+		display: none;
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	.cardrow {
+		display: flex;
+		align-items: center;
+		gap: 13px;
+		padding: 13px 0;
+		color: inherit;
+		text-decoration: none;
+		background: linear-gradient(
+				to right,
+				color-mix(in srgb, var(--color-text) 10%, transparent),
+				color-mix(in srgb, var(--color-text) 10%, transparent)
+			)
+			no-repeat bottom / 100% 1px;
+	}
+	.cardrow-main {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.cardrow-provider {
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 14px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.cardrow-date {
+		font-size: 11.5px;
+		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+	}
+	.cardrow-right {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 3px;
+		font-size: 14px;
+	}
+
+	/* — bottom tab bar — */
+	.tabs {
+		display: none;
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 5;
+		align-items: center;
+		justify-content: space-between;
+		padding: 11px 24px calc(16px + env(safe-area-inset-bottom));
+		background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+		backdrop-filter: blur(12px);
+		box-shadow: 0 -1px 0 color-mix(in srgb, var(--color-text) 8%, transparent);
+	}
+	.tab {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 3px;
+		font-size: 10px;
+		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+	}
+	.tab.current {
+		color: var(--color-accent);
+	}
+	.shutter {
+		width: 54px;
+		height: 54px;
+		margin-top: -26px;
+		border-radius: 99px;
+		border: 1.5px solid var(--color-accent);
+		background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+		color: var(--color-accent);
+		cursor: pointer;
+		display: grid;
+		place-items: center;
+		box-shadow: 0 0 26px color-mix(in srgb, var(--color-accent) 28%, transparent);
 	}
 
 	@media (max-width: 900px) {
@@ -742,15 +970,56 @@
 			flex: 1;
 			width: auto;
 		}
+	}
+
+	/* Phone: tab bar replaces the nav links, rows replace the table. */
+	@media (max-width: 700px) {
+		.app {
+			padding-bottom: 92px;
+		}
+		.links,
+		.add-desktop {
+			display: none;
+		}
+		.tabs {
+			display: flex;
+		}
+		.table-wrap {
+			display: none;
+		}
+		.cards {
+			display: block;
+		}
+		.nav {
+			padding: 14px 20px;
+		}
+		.hero {
+			padding: 26px 20px 20px;
+		}
+		.rail {
+			padding: 26px 20px;
+		}
+		.filed-section {
+			padding: 6px 20px 20px;
+		}
 		.figure {
-			font-size: 46px;
+			font-size: 48px;
 		}
 		.frac {
-			font-size: 26px;
+			font-size: 27px;
+		}
+		.chart {
+			height: 94px;
+		}
+		.axis {
+			display: none;
+		}
+		.axis-compact {
+			display: flex;
 		}
 	}
 
-	/* — dialogs — */
+	/* — add sheet — */
 	dialog {
 		color: var(--color-text);
 		background: var(--color-surface);
@@ -765,30 +1034,50 @@
 	dialog::backdrop {
 		background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 	}
-	dialog h2 {
-		font-size: 20px;
+	.sheet-head {
+		display: none;
+		align-items: center;
+		justify-content: space-between;
+		padding-bottom: var(--space-4);
 	}
-	dialog form {
+	.sheet-title {
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 15px;
+	}
+	.sheet-spacer {
+		width: 52px;
+	}
+	.sheet-body {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
 	}
-	dialog label {
+	.sheet-foot {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--space-2);
+		margin-top: var(--space-6);
+	}
+	.fld {
 		display: flex;
 		flex-direction: column;
 		gap: 5px;
 		font-size: 12px;
 		color: color-mix(in srgb, var(--color-text) 70%, transparent);
 	}
+	/* Amount is the hero field of the capture flow. */
+	.hero-field .amount-input {
+		min-height: 52px;
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 26px;
+		letter-spacing: -0.02em;
+		font-variant-numeric: tabular-nums;
+	}
 	.opt {
 		font-size: 11px;
 		color: color-mix(in srgb, var(--color-text) 40%, transparent);
-	}
-	.actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--space-2);
-		margin-top: var(--space-2);
 	}
 	.error {
 		color: var(--color-danger);
@@ -799,16 +1088,17 @@
 		height: 260px;
 		background: var(--color-neutral-900);
 		border-radius: var(--radius-sm);
-		margin-bottom: var(--space-4);
 	}
 	.file-row {
 		display: flex;
 		gap: var(--space-3);
 	}
 	.zoom {
+		display: flex;
 		flex-direction: row;
 		align-items: center;
 		gap: var(--space-3);
+		font-size: 12px;
 	}
 	.aspect-row {
 		display: flex;
@@ -818,5 +1108,108 @@
 		font-size: 12px;
 		color: color-mix(in srgb, var(--color-text) 55%, transparent);
 		margin: 0;
+	}
+
+	/* — the payoff frame — */
+	.done {
+		text-align: center;
+		padding: 34px 6px 6px;
+	}
+	.done-mark {
+		width: 66px;
+		height: 66px;
+		margin: 0 auto;
+		border-radius: 99px;
+		border: 1.5px solid var(--color-accent);
+		color: var(--color-accent);
+		display: grid;
+		place-items: center;
+		box-shadow: 0 0 40px color-mix(in srgb, var(--color-accent) 35%, transparent);
+	}
+	.done-title {
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 20px;
+		margin-top: 22px;
+		letter-spacing: -0.01em;
+	}
+	.done-sub {
+		font-size: 13px;
+		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+		margin-top: 8px;
+	}
+	.done-total {
+		margin-top: 36px;
+		padding-top: 26px;
+		background: linear-gradient(
+				to right,
+				transparent,
+				var(--color-divider) 20%,
+				var(--color-divider) 80%,
+				transparent
+			)
+			no-repeat top / 100% 1px;
+	}
+	.done-figure {
+		font-family: var(--font-heading);
+		font-weight: var(--font-heading-weight);
+		font-size: 42px;
+		line-height: 1;
+		letter-spacing: -0.03em;
+		margin-top: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+	.done-was {
+		font-size: 12.5px;
+		color: var(--color-accent-300);
+		margin-top: 9px;
+	}
+	.done-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin-top: 40px;
+	}
+	.tall {
+		min-height: 48px;
+		font-size: 15px;
+	}
+
+	@media (max-width: 700px) {
+		dialog.sheet {
+			width: 100vw;
+			max-width: none;
+			height: 100dvh;
+			max-height: none;
+			margin: 0;
+			border-radius: 0;
+			padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+			display: flex;
+			flex-direction: column;
+		}
+		.sheet-head {
+			display: flex;
+		}
+		.cancel-desktop {
+			display: none;
+		}
+		dialog.sheet form {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+		}
+		.sheet-body {
+			flex: 1;
+			overflow-y: auto;
+		}
+		.sheet-foot {
+			margin-top: var(--space-4);
+		}
+		.submit {
+			width: 100%;
+			min-height: 48px;
+			font-size: 15px;
+		}
 	}
 </style>

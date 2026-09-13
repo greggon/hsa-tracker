@@ -270,6 +270,24 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
 }
 
 /**
+ * Just the hero figure, for callers that need it without the rest of the vault.
+ *
+ * Used either side of filing a receipt so the capture flow can show the total
+ * moving — the artboard's "was $18,336.46".
+ */
+export function getUnreimbursedTotalCents(userId: number): number {
+	const rows = db
+		.select({ amountCents: expenses.amountCents })
+		.from(expenses)
+		.where(
+			and(eq(expenses.userId, userId), isNull(expenses.deletedAt), isNull(expenses.reimbursedAt))
+		)
+		.all();
+
+	return rows.reduce((sum, r) => sum + (r.amountCents ?? 0), 0);
+}
+
+/**
  * Expenses whose primary image is byte-identical to another expense's.
  *
  * Backs the receipt checklist's "not a duplicate" line. `documents.sha256` is
