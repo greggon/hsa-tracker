@@ -2,6 +2,7 @@
 	import '$lib/styles/nocturne.css';
 	import '$lib/styles/app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import Toaster from '$lib/components/Toaster.svelte';
 
 	let { children, data } = $props();
 </script>
@@ -11,6 +12,10 @@
 </svelte:head>
 
 {@render children()}
+
+<!-- Mounted here, not per page: a toast raised just before navigating away has
+     to outlive the page that raised it, and the layout survives navigation. -->
+<Toaster />
 
 <footer>
 	<small>{data.build.sha} · {data.build.time}</small>

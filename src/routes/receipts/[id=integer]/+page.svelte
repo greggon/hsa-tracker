@@ -1,31 +1,41 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { applyAction, enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import Icon from '$lib/components/Icon.svelte';
 	import ProviderInput from '$lib/components/ProviderInput.svelte';
 	import { money, pretty } from '$lib/format';
+	import { toasts } from '$lib/toast.svelte';
 	import type { PageProps } from './$types';
 
-	let { data, form }: PageProps = $props();
+	let { data }: PageProps = $props();
 
 	let confirmEl = $state<HTMLDialogElement | null>(null);
 	let saving = $state(false);
-	let justSaved = $state(false);
+
+	/**
+	 * Back to wherever this receipt was opened from.
+	 *
+	 * `history.back()` rather than a fixed destination, so the vault, the
+	 * receipts list and a filtered year all return to themselves with their
+	 * scroll position intact. Falls forward to the list when there is no history
+	 * to go back to, which happens when the receipt was opened from a bare link.
+	 */
+	function leave() {
+		if (history.length > 1) history.back();
+		else goto(resolve('/receipts'));
+	}
 
 	/**
 	 * Escape leaves the receipt the way it was opened.
 	 *
 	 * Skipped while the confirm dialog is up — a native <dialog> closes itself on
-	 * Escape, and dismissing it should not also navigate away. Falls forward to
-	 * the list when there is no history to go back to, which happens when the
-	 * receipt was opened directly from a link.
+	 * Escape, and dismissing it should not also navigate away.
 	 */
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || confirmEl?.open) return;
 		event.preventDefault();
-		if (history.length > 1) history.back();
-		else goto(resolve('/receipts'));
+		leave();
 	}
 
 	const doc = $derived(data.receipt.docId);
@@ -141,10 +151,24 @@
 				action="?/save"
 				use:enhance={() => {
 					saving = true;
-					return async ({ result, update }) => {
-						await update({ reset: false });
+					return async ({ result }) => {
 						saving = false;
-						justSaved = result.type === 'success';
+
+						if (result.type === 'success') {
+							// Toast first, navigate second: the toast lives in the layout, so
+							// it is still on screen when the previous page renders.
+							toasts.success('Receipt saved.');
+							leave();
+							return;
+						}
+
+						if (result.type === 'failure') {
+							toasts.error(String(result.data?.error ?? 'Could not save this receipt.'));
+							return;
+						}
+
+						// Redirects and unexpected errors keep SvelteKit's own handling.
+						await applyAction(result);
 					};
 				}}
 			>
@@ -198,9 +222,6 @@
 					</ul>
 				</div>
 
-				{#if form?.error}<p class="error">{form.error}</p>{/if}
-				{#if justSaved && !form?.error}<p class="saved">Saved.</p>{/if}
-
 				<div class="actions">
 					<button type="submit" class="btn btn-primary grow" disabled={saving}>
 						{saving ? 'Saving…' : 'Save changes'}
@@ -208,7 +229,25 @@
 				</div>
 			</form>
 
-			<form method="POST" action="?/reimburse" use:enhance>
+			<form
+				method="POST"
+				action="?/reimburse"
+				use:enhance={() => {
+					// Stays on the page deliberately: the checklist and the note below it
+					// both change, and you want to see them change.
+					const undoing = data.receipt.reimbursedAt != null;
+					return async ({ result, update }) => {
+						if (result.type === 'failure') {
+							toasts.error(String(result.data?.error ?? 'Could not update this receipt.'));
+							return;
+						}
+						await update({ reset: false });
+						if (result.type === 'success') {
+							toasts.success(undoing ? 'Reimbursement undone.' : 'Marked reimbursed.');
+						}
+					};
+				}}
+			>
 				<button type="submit" class="btn btn-secondary block">
 					{data.receipt.reimbursedAt ? 'Undo reimbursement' : 'Mark reimbursed'}
 				</button>
@@ -230,7 +269,23 @@
 		It disappears from your vault and stops counting toward your total. The image itself is kept, so
 		this can be undone from the database if you need it back.
 	</p>
-	<form method="POST" action="?/remove" use:enhance>
+	<form
+		method="POST"
+		action="?/remove"
+		use:enhance={() => {
+			return async ({ result }) => {
+				if (result.type === 'failure') {
+					toasts.error(String(result.data?.error ?? 'Could not delete this receipt.'));
+					confirmEl?.close();
+					return;
+				}
+				// The action redirects to the vault; the toast explains why the
+				// receipt is no longer in the list you land on.
+				if (result.type === 'redirect') toasts.success('Receipt deleted.');
+				await applyAction(result);
+			};
+		}}
+	>
 		<div class="actions">
 			<button type="button" class="btn btn-secondary" onclick={() => confirmEl?.close()}>
 				Cancel
@@ -394,16 +449,6 @@
 	.danger {
 		color: var(--color-danger);
 		border-color: var(--color-danger);
-	}
-	.error {
-		color: var(--color-danger);
-		margin: 0;
-		font-size: 13px;
-	}
-	.saved {
-		color: var(--color-accent-300);
-		margin: 0;
-		font-size: 13px;
 	}
 	.note {
 		margin: 0;
