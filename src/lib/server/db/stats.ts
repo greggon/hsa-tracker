@@ -1,5 +1,6 @@
 import { and, desc, eq, isNull, like, ne, sql } from 'drizzle-orm';
 import { buildChartGeometry, buildDailySeries, buildSeries } from '$lib/chart';
+import { rankProviders } from '$lib/providers';
 import type { ChartGeometry, DayPoint, YearPoint } from '$lib/chart';
 import { db } from './index';
 import { documents, expenses } from './schema';
@@ -179,6 +180,21 @@ export function listReceipts(userId: number, options: { year?: number } = {}): R
 		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
 		.all()
 		.map((r) => ({ ...r, hasThumb: r.hasThumb === 1, reasons: missingFrom(r) }));
+}
+
+/**
+ * The user's providers, most-used first, for the autocomplete on the provider
+ * field. Reimbursed receipts count — a clinic you have been paid back for is
+ * still one you go to — but deleted ones do not.
+ */
+export function getProviderSuggestions(userId: number): string[] {
+	const rows = db
+		.select({ provider: expenses.provider, serviceDate: expenses.serviceDate })
+		.from(expenses)
+		.where(and(eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.all();
+
+	return rankProviders(rows);
 }
 
 /** Every year the user has filed something against, newest first. */

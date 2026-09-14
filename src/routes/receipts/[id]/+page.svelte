@@ -2,7 +2,9 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import Icon from '$lib/components/Icon.svelte';
+	import ProviderInput from '$lib/components/ProviderInput.svelte';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -181,12 +183,10 @@
 					</div>
 					<div class="fld">
 						<label for="provider">Provider</label>
-						<input
+						<ProviderInput
 							id="provider"
-							class="input"
-							name="provider"
-							type="text"
 							value={data.receipt.provider ?? ''}
+							suggestions={page.data.providers ?? []}
 						/>
 					</div>
 				</div>

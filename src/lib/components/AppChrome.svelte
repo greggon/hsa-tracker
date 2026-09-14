@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import Icon from './Icon.svelte';
+	import ProviderInput from './ProviderInput.svelte';
 	import ImageCropper from './ImageCropper.svelte';
 
 	interface Props {
@@ -22,6 +24,7 @@
 	/** The chosen crop in natural image pixels, straight from the cropper. */
 	let pixels = $state<{ x: number; y: number; width: number; height: number } | null>(null);
 	let amountText = $state('');
+	let providerText = $state('');
 
 	/** The payoff frame's figures, set from the action's result. */
 	type Filed = {
@@ -43,6 +46,7 @@
 		pixels = null;
 		addError = null;
 		amountText = '';
+		providerText = '';
 		filed = null;
 	}
 
@@ -269,10 +273,12 @@
 					>Date of service
 					<input class="input" name="serviceDate" type="date" value={today} required />
 				</label>
-				<label class="fld"
-					>Provider
-					<input class="input" name="provider" type="text" />
-				</label>
+				<label class="fld" for="sheet-provider">Provider</label>
+				<ProviderInput
+					id="sheet-provider"
+					bind:value={providerText}
+					suggestions={page.data.providers ?? []}
+				/>
 
 				{#if addError}<p class="error">{addError}</p>{/if}
 			</div>
