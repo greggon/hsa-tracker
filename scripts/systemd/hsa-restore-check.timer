@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly HSA Saver restore verification
+
+[Timer]
+OnCalendar=Sun *-*-* 04:23:00
+Persistent=true
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

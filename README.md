@@ -1,6 +1,9 @@
-# sv
+# HSA Saver
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A vault for HSA receipts: capture them now, prove them decades later.
+
+SvelteKit + SQLite (Drizzle) + sharp, deployed to a Raspberry Pi behind
+Cloudflare Access. See [scripts/README.md](scripts/README.md) for backups.
 
 ## Creating a project
 
@@ -40,3 +43,17 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Testing
+
+```sh
+pnpm test
+```
+
+Runs against an in-memory database built from the real migrations, so tests can
+never reach a file on disk.
+
+## Backups
+
+Nightly snapshots to object storage, with a weekly restore drill. See
+[scripts/README.md](scripts/README.md).

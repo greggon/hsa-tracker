@@ -1,0 +1,13 @@
+[Unit]
+Description=HSA Saver backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=greggon
+EnvironmentFile=/etc/hsa-backup.env
+ExecStart=/home/greggon/apps/hsa/scripts/hsa-backup.sh
+# Backups compete with nothing; let them take their time politely.
+Nice=10
+IOSchedulingClass=idle
