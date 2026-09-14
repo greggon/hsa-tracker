@@ -8,6 +8,19 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const dbPath = env.DATABASE_PATH ?? 'data/hsa.db';
+
+/*
+ * Tests must never reach a real database. They mock this module out entirely
+ * (see testdb.ts); if one ever imports it for real, fail loudly here rather
+ * than let a fixture's `delete` run against whatever DATABASE_PATH resolves to.
+ * That is not hypothetical — it destroyed the development database once.
+ */
+if (process.env.VITEST) {
+	throw new Error(
+		'src/lib/server/db/index.ts was imported inside a test. ' +
+			"Mock it with vi.mock('./index', …) and makeTestDb() instead."
+	);
+}
 mkdirSync(dirname(dbPath), { recursive: true });
 
 const sqlite = new Database(dbPath);

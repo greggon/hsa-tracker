@@ -20,7 +20,6 @@ export default defineConfig({
 	ssr: { external: ['better-sqlite3'] },
 	test: {
 		include: ['src/**/*.test.ts'],
-		setupFiles: ['src/lib/server/db/test-setup.ts'],
 		// better-sqlite3 is a native addon; forks keep each run in its own process.
 		pool: 'forks'
 	}

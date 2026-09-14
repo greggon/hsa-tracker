@@ -1,5 +1,11 @@
 import { eq } from 'drizzle-orm';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+// Replaces the database module wholesale, so nothing here can open a file.
+vi.mock('./index', async () => {
+	const { makeTestDb } = await import('./testdb');
+	return makeTestDb();
+});
+
 import { db } from './index';
 import { documents, expenses, users } from './schema';
 import {

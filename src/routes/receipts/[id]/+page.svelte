@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import Icon from '$lib/components/Icon.svelte';
 	import type { PageProps } from './$types';
@@ -9,6 +10,21 @@
 	let confirmEl = $state<HTMLDialogElement | null>(null);
 	let saving = $state(false);
 	let justSaved = $state(false);
+
+	/**
+	 * Escape leaves the receipt the way it was opened.
+	 *
+	 * Skipped while the confirm dialog is up — a native <dialog> closes itself on
+	 * Escape, and dismissing it should not also navigate away. Falls forward to
+	 * the list when there is no history to go back to, which happens when the
+	 * receipt was opened directly from a link.
+	 */
+	function onKeydown(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || confirmEl?.open) return;
+		event.preventDefault();
+		if (history.length > 1) history.back();
+		else goto(resolve('/receipts'));
+	}
 
 	const doc = $derived(data.receipt.docId);
 	const docHref = $derived(doc == null ? '' : resolve('/documents/[id]', { id: String(doc) }));
@@ -66,6 +82,7 @@
 	);
 </script>
 
+<svelte:window onkeydown={onKeydown} />
 <svelte:head><title>{title} · HSA Saver</title></svelte:head>
 
 <div class="app">
