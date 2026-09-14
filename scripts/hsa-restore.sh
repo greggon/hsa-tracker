@@ -27,8 +27,23 @@ echo "Restoring '${SNAPSHOT}' to ${TARGET}"
 mkdir -p "$TARGET"
 restic restore "$SNAPSHOT" --tag hsa --target "$TARGET"
 
-db=$(find "$TARGET" -name 'hsa.db' -type f | head -1)
-uploads=$(find "$TARGET" -type d -name uploads | head -1)
+# restic recreates the absolute paths it backed up, so the tree arrives as
+# $TARGET/var/tmp/hsa-backup/hsa.db and $TARGET/home/.../data/uploads. Flatten
+# it to a plain hsa.db + uploads/ at the top, which is the shape the app wants
+# and the shape you can copy straight into place — on this machine or any other.
+raw_db=$(find "$TARGET" -name 'hsa.db' -type f | head -1)
+raw_uploads=$(find "$TARGET" -type d -name uploads | head -1)
+
+[ -n "$raw_db" ] || { echo "no hsa.db in the restored snapshot" >&2; exit 1; }
+[ -n "$raw_uploads" ] || { echo "no uploads directory in the restored snapshot" >&2; exit 1; }
+
+db="$TARGET/hsa.db"
+uploads="$TARGET/uploads"
+[ "$raw_db" = "$db" ] || mv "$raw_db" "$db"
+[ "$raw_uploads" = "$uploads" ] || mv "$raw_uploads" "$uploads"
+
+# Drop the now-empty scaffolding the absolute paths left behind.
+find "$TARGET" -mindepth 1 -maxdepth 1 -type d ! -name uploads -exec rm -rf {} +
 
 if command -v sqlite3 >/dev/null && [ -n "$db" ]; then
 	echo
@@ -40,15 +55,25 @@ fi
 
 cat <<INSTRUCTIONS
 
-Restored, but NOT yet live. Inspect ${TARGET} first.
+Restored to ${TARGET}:
 
-To put it into service:
+  ${TARGET}/hsa.db
+  ${TARGET}/uploads/
+
+NOT yet live. Inspect it first.
+
+To run the app against it without touching anything else — works on any
+machine, which is what makes this a real recovery test:
+
+  DATABASE_PATH=${TARGET}/hsa.db UPLOAD_ROOT=${TARGET}/uploads pnpm dev
+
+To put it into service on the Pi:
 
   docker compose down
   mv ${DATA_DIR} ${DATA_DIR}.broken-$(date +%Y%m%d-%H%M%S)
   mkdir -p ${DATA_DIR}
-  cp ${db:-<restored hsa.db>} ${DATA_DIR}/hsa.db
-  cp -a ${uploads:-<restored uploads>} ${DATA_DIR}/uploads
+  cp ${TARGET}/hsa.db ${DATA_DIR}/hsa.db
+  cp -a ${TARGET}/uploads ${DATA_DIR}/uploads
   docker compose up -d
 
 Keep the .broken copy until you are satisfied. The restored database has no

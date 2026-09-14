@@ -59,11 +59,28 @@ Write). Note the account ID from the R2 overview page.
 # The encryption key. Without it the backups are unreadable ciphertext —
 # keep a copy somewhere that is not the Pi and not the R2 bucket.
 openssl rand -base64 32 | sudo tee /etc/hsa-backup.key
-sudo chmod 600 /etc/hsa-backup.key
 
 sudo cp ~/apps/hsa/scripts/backup.env.example /etc/hsa-backup.env
-sudo chmod 600 /etc/hsa-backup.env
 sudo nano /etc/hsa-backup.env      # fill in account id, bucket, keys
+```
+
+Both files must be **owned by the user the backup runs as**, not by root:
+
+```sh
+sudo chown greggon:greggon /etc/hsa-backup.env /etc/hsa-backup.key
+sudo chmod 600 /etc/hsa-backup.env /etc/hsa-backup.key
+```
+
+Still private to you and root, but readable by the account that needs them.
+Root ownership breaks this in two ways, one of them quiet: sourcing the env
+file by hand fails outright, and while systemd reads `EnvironmentFile=` as root
+so the timer _looks_ fine, the service body runs as `greggon` and restic cannot
+open the password file. Check both with:
+
+```sh
+sudo -u greggon test -r /etc/hsa-backup.env \
+  && sudo -u greggon test -r /etc/hsa-backup.key \
+  && echo "both readable"
 ```
 
 First run by hand, so the repository is created while you are watching:
@@ -95,6 +112,45 @@ set -a; . /etc/hsa-backup.env; set +a
 It restores to a sibling directory and prints the commands to swap it in. The
 swap is left to you deliberately: you get to look at the restored copy before
 anything destructive happens.
+
+## Restoring somewhere else (the real drill)
+
+Restoring onto the Pi proves the snapshot is readable. Restoring onto a
+_different machine_ proves the backup is actually independent of the Pi — which
+is the scenario it exists for. Worth doing once, now, while nothing is on fire.
+
+The credentials live on the Pi. They are owned by your user, so no `sudo`:
+
+```sh
+mkdir -p ~/.hsa-restore && chmod 700 ~/.hsa-restore
+ssh greggon@pi4 'cat /etc/hsa-backup.env' > ~/.hsa-restore/env
+ssh greggon@pi4 'cat /etc/hsa-backup.key' > ~/.hsa-restore/key
+chmod 600 ~/.hsa-restore/env ~/.hsa-restore/key
+```
+
+Point the local paths at yourself rather than the Pi's, and restore:
+
+```sh
+sudo apt install -y restic sqlite3
+
+set -a; . ~/.hsa-restore/env; set +a
+export RESTIC_PASSWORD_FILE=~/.hsa-restore/key
+export DATA_DIR=~/code/hsa-tracker/data      # only used for the printed advice
+export RESTORE_TARGET=/tmp/hsa-from-pi
+
+cd ~/code/hsa-tracker && ./scripts/hsa-restore.sh
+```
+
+Then run the app against the restored copy. Nothing else is touched — your
+working `data/` is left exactly as it was:
+
+```sh
+DATABASE_PATH=/tmp/hsa-from-pi/hsa.db UPLOAD_ROOT=/tmp/hsa-from-pi/uploads pnpm dev
+```
+
+If the receipts are all there and the thumbnails load, the backup is real.
+Afterwards, `rm -rf ~/.hsa-restore /tmp/hsa-from-pi` — that key decrypts
+everything, so do not leave copies of it lying around.
 
 ## Checking on it
 
