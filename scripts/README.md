@@ -29,6 +29,23 @@ has fewer than `MIN_EXPECTED_ROWS` receipts the backup _refuses to run_, so a
 wipe cannot quietly become your newest snapshot. Raise the number once you have
 a steady receipt count.
 
+## Getting these onto the Pi
+
+`pnpm deploy` does **not** copy them. It only pulls the container image and
+restarts it — and these scripts are deliberately excluded from that image,
+because they run on the host so they still work when the container is down.
+
+```sh
+pnpm deploy:scripts
+```
+
+which is `rsync -az --delete scripts/ greggon@pi4:~/apps/hsa/scripts/`.
+Re-run it whenever you change something in here. `--delete` keeps the Pi's copy
+an exact mirror, so do not keep anything of your own in that directory.
+
+The systemd units are copied to the Pi by that command too, but installing them
+still needs `sudo` — see below.
+
 ## Setting it up on the Pi
 
 ```sh
@@ -44,7 +61,7 @@ Write). Note the account ID from the R2 overview page.
 openssl rand -base64 32 | sudo tee /etc/hsa-backup.key
 sudo chmod 600 /etc/hsa-backup.key
 
-sudo cp scripts/backup.env.example /etc/hsa-backup.env
+sudo cp ~/apps/hsa/scripts/backup.env.example /etc/hsa-backup.env
 sudo chmod 600 /etc/hsa-backup.env
 sudo nano /etc/hsa-backup.env      # fill in account id, bucket, keys
 ```
@@ -52,6 +69,7 @@ sudo nano /etc/hsa-backup.env      # fill in account id, bucket, keys
 First run by hand, so the repository is created while you are watching:
 
 ```sh
+cd ~/apps/hsa
 set -a; . /etc/hsa-backup.env; set +a
 ./scripts/hsa-backup.sh
 ./scripts/hsa-restore-check.sh
@@ -60,7 +78,7 @@ set -a; . /etc/hsa-backup.env; set +a
 Then schedule:
 
 ```sh
-sudo cp scripts/systemd/* /etc/systemd/system/
+sudo cp ~/apps/hsa/scripts/systemd/* /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now hsa-backup.timer hsa-restore-check.timer
 systemctl list-timers 'hsa-*'
