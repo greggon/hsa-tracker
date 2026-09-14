@@ -7,6 +7,12 @@ services:
       CF_ACCESS_AUD: ${CF_ACCESS_AUD}
       ORIGIN: https://hsa.goncharov.app
       DATABASE_PATH: /data/hsa.db
+      # Must point inside the mounted volume. Left unset it defaults to a
+      # relative path inside the image, where uploads are destroyed by the next
+      # `docker compose up -d` while their rows survive in the database.
+      UPLOAD_ROOT: /data/uploads
+      # SvelteKit's adapter-node defaults to 512K, which rejects phone photos.
+      BODY_SIZE_LIMIT: 15M
     volumes:
       - ./data:/data
     networks: [edge]
