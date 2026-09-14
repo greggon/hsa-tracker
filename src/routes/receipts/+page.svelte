@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import AppChrome from '$lib/components/AppChrome.svelte';
 	import ReceiptList from '$lib/components/ReceiptList.svelte';
+	import { money } from '$lib/format';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -22,9 +23,6 @@
 				})
 	);
 
-	const money = (cents: number) =>
-		(cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-
 	/** Only receipts still owed to you count toward the figure the vault shows. */
 	const outstandingCents = $derived(
 		matches.reduce((sum, e) => sum + (e.reimbursedAt ? 0 : (e.amountCents ?? 0)), 0)
@@ -38,7 +36,7 @@
 <svelte:head><title>Receipts · HSA Saver</title></svelte:head>
 
 <div class="app">
-	<AppChrome current="receipts" bind:search={query} />
+	<AppChrome current="receipts" bind:search={query} providers={data.providers} />
 
 	<section class="head">
 		<h1>{data.year ?? 'All'} receipts</h1>

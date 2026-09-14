@@ -17,17 +17,29 @@
 		type Rect
 	} from '$lib/crop';
 
+	export type PixelCrop = { x: number; y: number; width: number; height: number };
+
 	interface Props {
 		src: string;
-		/** Crop in natural image pixels; null until the image has loaded. */
-		crop?: { x: number; y: number; width: number; height: number } | null;
+		/**
+		 * Called whenever the selection changes, in natural image pixels — which
+		 * is the unit the server crops in.
+		 *
+		 * A callback rather than a bound prop written from an `$effect`: the crop
+		 * is a consequence of the selection, not a second copy of it, and an
+		 * effect that writes state it does not read is how synchronisation loops
+		 * start.
+		 */
+		oncrop?: (crop: PixelCrop) => void;
 	}
 
-	let { src, crop = $bindable(null) }: Props = $props();
+	let { src, oncrop }: Props = $props();
 
 	let stageEl = $state<HTMLElement | null>(null);
 	let natural = $state({ w: 0, h: 0 });
 	let rect = $state<Rect>(FULL);
+	/** The published crop, also shown in the readout. */
+	let crop = $state<PixelCrop | null>(null);
 	let dragging = $state<Handle | null>(null);
 	/** Width ÷ height in real pixels, or null when the crop is free-form. */
 	let aspect = $state<number | null>(null);
@@ -40,9 +52,17 @@
 		reset();
 	}
 
+	/** The single place the selection changes, so publishing cannot be missed. */
+	function setRect(next: Rect) {
+		rect = next;
+		if (!natural.w || !natural.h) return;
+		crop = toPixels(next, natural);
+		oncrop?.(crop);
+	}
+
 	function reset() {
 		aspect = null;
-		rect = FULL;
+		setRect(FULL);
 	}
 
 	const aspectNormalised = $derived(toNormalisedAspect(aspect, natural));
@@ -66,7 +86,7 @@
 	function onPointerMove(event: PointerEvent) {
 		if (!dragging || !origin) return;
 		const p = fractionAt(event);
-		rect = resizeRect(dragging, origin.rect, p.x - origin.px, p.y - origin.py, aspectNormalised);
+		setRect(resizeRect(dragging, origin.rect, p.x - origin.px, p.y - origin.py, aspectNormalised));
 	}
 
 	function onPointerUp() {
@@ -86,19 +106,14 @@
 		const move = moves[event.key];
 		if (!move) return;
 		event.preventDefault();
-		rect = resizeRect('move', rect, move[0], move[1]);
+		setRect(resizeRect('move', rect, move[0], move[1]));
 	}
 
 	function setAspect(next: number | null) {
 		aspect = next;
 		const target = toNormalisedAspect(next, natural);
-		if (target) rect = fitAspect(rect, target);
+		if (target) setRect(fitAspect(rect, target));
 	}
-
-	// Publish in natural pixels, which is the unit the server crops in.
-	$effect(() => {
-		if (natural.w && natural.h) crop = toPixels(rect, natural);
-	});
 
 	/**
 	 * The dimmed surround, as the four bands of image left uncovered by the

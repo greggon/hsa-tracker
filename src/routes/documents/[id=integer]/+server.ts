@@ -5,7 +5,8 @@ import { and, eq } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { documents } from '$lib/server/db/schema';
-import { UPLOAD_ROOT } from '$lib/server/storage';
+import { dispositionFilename } from '$lib/server/http';
+import { uploadRoot } from '$lib/server/storage';
 
 /**
  * Serves one document in one of three variants:
@@ -19,8 +20,8 @@ import { UPLOAD_ROOT } from '$lib/server/storage';
  * keeps a hard reload from re-sending every thumbnail in a long list.
  */
 export async function GET({ params, locals, url, request }) {
+	// Guaranteed a positive integer by the [id=integer] route matcher.
 	const id = Number(params.id);
-	if (!Number.isInteger(id)) error(404);
 
 	const doc = db
 		.select()
@@ -63,7 +64,7 @@ export async function GET({ params, locals, url, request }) {
 	}
 
 	const key = variant === 'web' ? doc.webKey! : doc.storageKey;
-	const full = join(UPLOAD_ROOT, key);
+	const full = join(uploadRoot(), key);
 
 	// Without this the read stream fails after the response has already begun,
 	// which reaches the browser as a truncated image rather than a 404.
@@ -73,7 +74,7 @@ export async function GET({ params, locals, url, request }) {
 	headers.set('content-type', variant === 'web' ? 'image/jpeg' : doc.mimeType);
 	headers.set(
 		'content-disposition',
-		`${download ? 'attachment' : 'inline'}; filename="${(doc.originalFilename ?? 'receipt').replace(/"/g, '')}"`
+		`${download ? 'attachment' : 'inline'}; ${dispositionFilename(doc.originalFilename)}`
 	);
 
 	return new Response(Readable.toWeb(createReadStream(full)) as ReadableStream, { headers });

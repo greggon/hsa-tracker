@@ -2,9 +2,9 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
 	import Icon from '$lib/components/Icon.svelte';
 	import ProviderInput from '$lib/components/ProviderInput.svelte';
+	import { money, pretty } from '$lib/format';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
@@ -29,20 +29,10 @@
 	}
 
 	const doc = $derived(data.receipt.docId);
-	const docHref = $derived(doc == null ? '' : resolve('/documents/[id]', { id: String(doc) }));
+	const docHref = $derived(
+		doc == null ? '' : resolve('/documents/[id=integer]', { id: String(doc) })
+	);
 	const isPdf = $derived(data.receipt.mimeType === 'application/pdf');
-
-	const money = (cents: number | null) =>
-		cents == null
-			? '—'
-			: (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-
-	const pretty = (iso: string) =>
-		new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 
 	const prettyStamp = (d: Date | string) =>
 		new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -98,7 +88,7 @@
 			{#if doc}
 				<a
 					class="btn btn-secondary"
-					href={resolve('/documents/[id]', { id: String(doc) })}
+					href={resolve('/documents/[id=integer]', { id: String(doc) })}
 					download={data.receipt.originalFilename ?? 'receipt'}
 				>
 					Download original
@@ -120,7 +110,10 @@
 				<div class="receipt placeholder pdf">
 					<Icon name="receipt" size={30} />
 					<span>PDF receipt</span>
-					<a class="btn btn-secondary" href={resolve('/documents/[id]', { id: String(doc) })}>
+					<a
+						class="btn btn-secondary"
+						href={resolve('/documents/[id=integer]', { id: String(doc) })}
+					>
 						Open original
 					</a>
 				</div>
@@ -186,7 +179,7 @@
 						<ProviderInput
 							id="provider"
 							value={data.receipt.provider ?? ''}
-							suggestions={page.data.providers ?? []}
+							suggestions={data.providers}
 						/>
 					</div>
 				</div>

@@ -5,8 +5,10 @@
  * value that will not parse is still an error — that is a typo, not an
  * unreadable receipt.
  *
- * Shared by the vault's quick edit and the receipt detail screen so the two
- * cannot drift apart.
+ * Shared by every caller that parses an amount — the capture sheet, the receipt
+ * detail screen, and the submit button's own preview of what it is about to
+ * add. Deliberately outside `$lib/server`: it is pure, and the browser needs to
+ * agree with the server about what counts as a valid amount.
  */
 export function toCents(raw: string): number | null {
 	const trimmed = raw.trim();

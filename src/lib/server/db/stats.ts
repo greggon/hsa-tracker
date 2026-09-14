@@ -3,6 +3,7 @@ import { buildChartGeometry, buildDailySeries, buildSeries } from '$lib/chart';
 import { rankProviders } from '$lib/providers';
 import type { ChartGeometry, DayPoint, YearPoint } from '$lib/chart';
 import { db } from './index';
+import { liveExpenses, notDeleted } from './filters';
 import { documents, expenses } from './schema';
 
 export type { ChartGeometry, ChartReading, DayPoint, Tick, YearPoint } from '$lib/chart';
@@ -80,7 +81,7 @@ export function getVaultStats(userId: number, now = new Date()): VaultStats {
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
-		.where(and(eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.where(liveExpenses(userId))
 		.all();
 
 	const unreimbursed = rows.filter((r) => r.reimbursedAt == null);
@@ -161,8 +162,7 @@ export type ReceiptRow = {
  * /documents/[id]?thumb rather than inlined into the page.
  */
 export function listReceipts(userId: number, options: { year?: number } = {}): ReceiptRow[] {
-	const filters = [eq(expenses.userId, userId), isNull(expenses.deletedAt)];
-	if (options.year) filters.push(like(expenses.serviceDate, `${options.year}-%`));
+	const year = options.year ? like(expenses.serviceDate, `${options.year}-%`) : undefined;
 
 	return db
 		.select({
@@ -176,7 +176,7 @@ export function listReceipts(userId: number, options: { year?: number } = {}): R
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
-		.where(and(...filters))
+		.where(and(liveExpenses(userId), year))
 		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
 		.all()
 		.map((r) => ({ ...r, hasThumb: r.hasThumb === 1, reasons: missingFrom(r) }));
@@ -191,7 +191,7 @@ export function getProviderSuggestions(userId: number): string[] {
 	const rows = db
 		.select({ provider: expenses.provider, serviceDate: expenses.serviceDate })
 		.from(expenses)
-		.where(and(eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.where(liveExpenses(userId))
 		.all();
 
 	return rankProviders(rows);
@@ -202,7 +202,7 @@ export function getFilingYears(userId: number): number[] {
 	return db
 		.selectDistinct({ year: sql<string>`substr(${expenses.serviceDate}, 1, 4)` })
 		.from(expenses)
-		.where(and(eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.where(liveExpenses(userId))
 		.all()
 		.map((r) => Number(r.year))
 		.filter((y) => Number.isFinite(y))
@@ -219,9 +219,7 @@ export function getUnreimbursedTotalCents(userId: number): number {
 	const rows = db
 		.select({ amountCents: expenses.amountCents })
 		.from(expenses)
-		.where(
-			and(eq(expenses.userId, userId), isNull(expenses.deletedAt), isNull(expenses.reimbursedAt))
-		)
+		.where(and(liveExpenses(userId), isNull(expenses.reimbursedAt)))
 		.all();
 
 	return rows.reduce((sum, r) => sum + (r.amountCents ?? 0), 0);
@@ -240,9 +238,7 @@ export function findDuplicateExpenseIds(userId: number): Set<number> {
 		.select({ expenseId: documents.expenseId, sha256: documents.sha256 })
 		.from(documents)
 		.innerJoin(expenses, eq(expenses.id, documents.expenseId))
-		.where(
-			and(eq(documents.userId, userId), eq(documents.isPrimary, 1), isNull(expenses.deletedAt))
-		)
+		.where(and(eq(documents.userId, userId), eq(documents.isPrimary, 1), notDeleted))
 		.all();
 
 	const byHash = new Map<string, number[]>();
@@ -286,7 +282,7 @@ export function auditReceipt(userId: number, expenseId: number): ReceiptAudit | 
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
-		.where(and(eq(expenses.id, expenseId), eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.where(liveExpenses(userId, expenseId))
 		.get();
 
 	if (!row) return null;
@@ -307,7 +303,7 @@ export function auditReceipt(userId: number, expenseId: number): ReceiptAudit | 
 					eq(documents.sha256, row.sha256),
 					eq(documents.isPrimary, 1),
 					ne(documents.expenseId, expenseId),
-					isNull(expenses.deletedAt)
+					notDeleted
 				)
 			)
 			.get();

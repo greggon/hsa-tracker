@@ -1,11 +1,12 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { error, fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
+import { liveExpenses } from '$lib/server/db/filters';
 import { documents, expenses } from '$lib/server/db/schema';
 import { auditReceipt } from '$lib/server/db/stats';
-import { AMOUNT_ERROR, toCents } from '$lib/server/money';
+import { parseReceiptForm } from '$lib/server/receipt-form';
 
-/** Loads the receipt, scoped to the signed-in user and excluding soft-deleted rows. */
+/** Loads the receipt for display, scoped to the signed-in user. */
 function findReceipt(userId: number, id: number) {
 	return db
 		.select({
@@ -23,13 +24,29 @@ function findReceipt(userId: number, id: number) {
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
-		.where(and(eq(expenses.id, id), eq(expenses.userId, userId), isNull(expenses.deletedAt)))
+		.where(liveExpenses(userId, id))
 		.get();
 }
 
+/**
+ * The authorization every action shares: the row must exist, belong to this
+ * user, and not be deleted. Returning the row rather than a boolean means an
+ * action cannot accidentally proceed without having looked.
+ */
+function requireOwned(userId: number, rawId: string) {
+	return (
+		db
+			.select()
+			.from(expenses)
+			.where(liveExpenses(userId, Number(rawId)))
+			.get() ?? null
+	);
+}
+
 export const load = ({ params, locals }) => {
+	// The [id=integer] matcher has already rejected anything that is not a
+	// positive integer, so this cannot be NaN.
 	const id = Number(params.id);
-	if (!Number.isInteger(id)) error(404, 'Not found');
 
 	const receipt = findReceipt(locals.userId, id);
 	if (!receipt) error(404, 'Not found');
@@ -39,38 +56,15 @@ export const load = ({ params, locals }) => {
 
 export const actions = {
 	save: async ({ params, request, locals }) => {
-		const id = Number(params.id);
-		const existing = db
-			.select()
-			.from(expenses)
-			.where(
-				and(eq(expenses.id, id), eq(expenses.userId, locals.userId), isNull(expenses.deletedAt))
-			)
-			.get();
+		const existing = requireOwned(locals.userId, params.id);
 		if (!existing) return fail(404, { error: 'Not found.' });
 
-		const form = await request.formData();
-
-		const serviceDate = String(form.get('serviceDate') ?? '');
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(serviceDate)) {
-			return fail(400, { error: 'Enter a valid date.' });
-		}
-
-		let amountCents: number | null;
-		try {
-			amountCents = toCents(String(form.get('amount') ?? ''));
-		} catch {
-			return fail(400, { error: AMOUNT_ERROR });
-		}
+		const parsed = parseReceiptForm(await request.formData());
+		if (!parsed.ok) return fail(400, { error: parsed.error });
 
 		db.update(expenses)
-			.set({
-				serviceDate,
-				amountCents,
-				provider: String(form.get('provider') ?? '') || null,
-				updatedAt: new Date()
-			})
-			.where(and(eq(expenses.id, id), eq(expenses.userId, locals.userId)))
+			.set({ ...parsed.fields, updatedAt: new Date() })
+			.where(eq(expenses.id, existing.id))
 			.run();
 
 		return { saved: true };
@@ -78,14 +72,7 @@ export const actions = {
 
 	/** Toggles, so the same button can undo a reimbursement recorded by mistake. */
 	reimburse: async ({ params, locals }) => {
-		const id = Number(params.id);
-		const existing = db
-			.select()
-			.from(expenses)
-			.where(
-				and(eq(expenses.id, id), eq(expenses.userId, locals.userId), isNull(expenses.deletedAt))
-			)
-			.get();
+		const existing = requireOwned(locals.userId, params.id);
 		if (!existing) return fail(404, { error: 'Not found.' });
 
 		const nowReimbursed = existing.reimbursedAt == null;
@@ -95,7 +82,7 @@ export const actions = {
 				reimbursedAmountCents: nowReimbursed ? (existing.amountCents ?? 0) : 0,
 				updatedAt: new Date()
 			})
-			.where(and(eq(expenses.id, id), eq(expenses.userId, locals.userId)))
+			.where(eq(expenses.id, existing.id))
 			.run();
 
 		return { saved: true };
@@ -107,16 +94,14 @@ export const actions = {
 	 * later, so "Delete" removes a receipt from view, not from the record.
 	 */
 	remove: async ({ params, locals }) => {
-		const id = Number(params.id);
-		const result = db
-			.update(expenses)
+		const existing = requireOwned(locals.userId, params.id);
+		if (!existing) return fail(404, { error: 'Not found.' });
+
+		db.update(expenses)
 			.set({ deletedAt: new Date(), updatedAt: new Date() })
-			.where(
-				and(eq(expenses.id, id), eq(expenses.userId, locals.userId), isNull(expenses.deletedAt))
-			)
+			.where(eq(expenses.id, existing.id))
 			.run();
 
-		if (result.changes === 0) return fail(404, { error: 'Not found.' });
 		redirect(303, '/');
 	}
 };

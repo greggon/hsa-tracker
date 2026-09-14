@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 // Replaces the database module wholesale, so nothing here can open a file.
 vi.mock('./index', async () => {
 	const { makeTestDb } = await import('./testdb');
@@ -22,7 +22,13 @@ describe('against a real database', () => {
 	const OWNER = 1;
 	const STRANGER = 2;
 
-	beforeAll(() => {
+	/**
+	 * Re-seeded before every test, not once for the file. Several tests mutate
+	 * these rows — one soft-deletes a receipt to prove its twin stops being
+	 * flagged as a duplicate — and with a shared fixture that left the outcome
+	 * of every later test depending on the order it happened to run in.
+	 */
+	beforeEach(() => {
 		db.delete(documents).run();
 		db.delete(expenses).run();
 		db.delete(users).run();
@@ -237,7 +243,8 @@ describe('against a real database', () => {
 			expect([...findDuplicateExpenseIds(OWNER)]).toEqual([]);
 		});
 
-		it('flags both sides of a pair sharing one image', () => {
+		/** Two receipts, 10 and 11, filed against byte-identical images. */
+		function seedDuplicatePair() {
 			db.insert(expenses)
 				.values([
 					{
@@ -269,12 +276,16 @@ describe('against a real database', () => {
 					}))
 				)
 				.run();
+		}
 
+		it('flags both sides of a pair sharing one image', () => {
+			seedDuplicatePair();
 			expect([...findDuplicateExpenseIds(OWNER)].sort((a, b) => a - b)).toEqual([10, 11]);
 			expect(auditReceipt(OWNER, 10)?.notDuplicate).toBe(false);
 		});
 
 		it('stops flagging the survivor once its twin is deleted', () => {
+			seedDuplicatePair();
 			db.update(expenses).set({ deletedAt: new Date() }).where(eq(expenses.id, 11)).run();
 			expect([...findDuplicateExpenseIds(OWNER)]).toEqual([]);
 			expect(auditReceipt(OWNER, 10)?.notDuplicate).toBe(true);

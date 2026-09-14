@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { money, pretty } from '$lib/format';
 	import type { ReceiptRow } from '$lib/server/db/stats';
 
 	interface Props {
@@ -18,20 +19,7 @@
 		document: 'Needs image'
 	};
 
-	/** An em dash stands in for an amount that could not be read off the receipt. */
-	const money = (cents: number | null) =>
-		cents == null
-			? '—'
-			: (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-
-	const pretty = (iso: string) =>
-		new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-
-	const href = (id: number) => resolve('/receipts/[id]', { id: String(id) });
+	const href = (id: number) => resolve('/receipts/[id=integer]', { id: String(id) });
 </script>
 
 {#snippet statusTag(e: ReceiptRow)}
@@ -49,7 +37,7 @@
 		<img
 			class="thumb"
 			style="width:{w}px;height:{h}px"
-			src={resolve('/documents/[id]', { id: String(e.docId) }) + '?thumb'}
+			src={resolve('/documents/[id=integer]', { id: String(e.docId) }) + '?thumb'}
 			alt=""
 			width={w}
 			height={h}

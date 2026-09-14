@@ -4,7 +4,25 @@ on:
     branches: [main]
 
 jobs:
+  # Gates the image. Previously a push built and published straight to :latest
+  # with nothing verified, so a red test still became the image `pnpm deploy`
+  # pulled onto the Pi.
+  verify:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check
+      - run: pnpm test
+
   build:
+    needs: verify
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: read

@@ -1,27 +1,27 @@
 {
-  "version": "7",
-  "dialect": "sqlite",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1788297560664,
-      "tag": "0000_cuddly_misty_knight",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1789336662408,
-      "tag": "0001_third_invaders",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1789339583868,
-      "tag": "0002_wealthy_roxanne_simpson",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1788297560664,
+			"tag": "0000_cuddly_misty_knight",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1789336662408,
+			"tag": "0001_third_invaders",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1789339583868,
+			"tag": "0002_wealthy_roxanne_simpson",
+			"breakpoints": true
+		}
+	]
 }
