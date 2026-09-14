@@ -113,6 +113,32 @@ It restores to a sibling directory and prints the commands to swap it in. The
 swap is left to you deliberately: you get to look at the restored copy before
 anything destructive happens.
 
+## Developing against production data
+
+```sh
+pnpm pull:prod
+```
+
+Takes a consistent dump on the Pi with `sqlite3 .backup` — no downtime, the
+container keeps running — then pulls it and the uploads into local `data/`.
+Your existing local data is copied aside to `data.local-<timestamp>` first.
+
+Stop your dev server before running it; swapping the database under a live
+connection produces a confusingly half-broken session.
+
+It is **one-way by design.** There is no matching push, and there should not
+be: production's database is the one that has your receipts in it, and
+promoting a dev copy over it should not be something a typo can do. Changes
+reach production by deploying code and letting the Pi migrate its own database.
+
+Note that the copy diverges as soon as you use it — running the app applies any
+migrations your branch has that production does not. That is useful (it tests
+your migration against real data) but it means the copy is no longer identical
+to the Pi.
+
+If you would rather not disturb the Pi at all, restore last night's snapshot
+from R2 instead, as below — it costs nothing and exercises the backup.
+
 ## Restoring somewhere else (the real drill)
 
 Restoring onto the Pi proves the snapshot is readable. Restoring onto a

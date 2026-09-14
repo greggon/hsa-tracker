@@ -15,7 +15,8 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"deploy": "ssh greggon@pi4 'cd ~/apps/hsa && docker compose pull && docker compose up -d'",
-		"deploy:scripts": "rsync -az --delete scripts/ greggon@pi4:~/apps/hsa/scripts/"
+		"deploy:scripts": "rsync -az --delete scripts/ greggon@pi4:~/apps/hsa/scripts/",
+		"pull:prod": "./scripts/hsa-pull-prod.sh"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
