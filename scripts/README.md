@@ -142,30 +142,19 @@ from R2 instead, as below — it costs nothing and exercises the backup.
 ## Restoring somewhere else (the real drill)
 
 Restoring onto the Pi proves the snapshot is readable. Restoring onto a
-_different machine_ proves the backup is actually independent of the Pi — which
-is the scenario it exists for. Worth doing once, now, while nothing is on fire.
-
-The credentials live on the Pi. They are owned by your user, so no `sudo`:
+_different machine_ proves the backup is independent of the Pi — which is the
+scenario it exists for. Worth doing periodically, while nothing is on fire.
 
 ```sh
-mkdir -p ~/.hsa-restore && chmod 700 ~/.hsa-restore
-ssh greggon@pi4 'cat /etc/hsa-backup.env' > ~/.hsa-restore/env
-ssh greggon@pi4 'cat /etc/hsa-backup.key' > ~/.hsa-restore/key
-chmod 600 ~/.hsa-restore/env ~/.hsa-restore/key
+sudo apt install -y restic sqlite3      # once
+pnpm restore:r2                          # latest snapshot
+pnpm restore:r2 <snapshot-id>            # a specific one
 ```
 
-Point the local paths at yourself rather than the Pi's, and restore:
-
-```sh
-sudo apt install -y restic sqlite3
-
-set -a; . ~/.hsa-restore/env; set +a
-export RESTIC_PASSWORD_FILE=~/.hsa-restore/key
-export DATA_DIR=~/code/hsa-tracker/data      # only used for the printed advice
-export RESTORE_TARGET=/tmp/hsa-from-pi
-
-cd ~/code/hsa-tracker && ./scripts/hsa-restore.sh
-```
+That borrows the credentials from the Pi into a private temp directory, restores
+to `/tmp/hsa-from-pi`, and **shreds them again on the way out**. The repository
+password decrypts every backup you have, so it is held for the length of one
+restore rather than left sitting on a development machine.
 
 Then run the app against the restored copy. Nothing else is touched — your
 working `data/` is left exactly as it was:
@@ -175,8 +164,30 @@ DATABASE_PATH=/tmp/hsa-from-pi/hsa.db UPLOAD_ROOT=/tmp/hsa-from-pi/uploads pnpm 
 ```
 
 If the receipts are all there and the thumbnails load, the backup is real.
-Afterwards, `rm -rf ~/.hsa-restore /tmp/hsa-from-pi` — that key decrypts
-everything, so do not leave copies of it lying around.
+Afterwards: `rm -rf /tmp/hsa-from-pi`.
+
+<details>
+<summary>Doing it by hand instead</summary>
+
+Keeping a long-lived copy of the credentials works too, but that copy decrypts
+everything in the bucket, so delete it when you are done:
+
+```sh
+mkdir -p ~/.hsa-restore && chmod 700 ~/.hsa-restore
+ssh greggon@pi4 'cat /etc/hsa-backup.env' > ~/.hsa-restore/env
+ssh greggon@pi4 'cat /etc/hsa-backup.key' > ~/.hsa-restore/key
+chmod 600 ~/.hsa-restore/env ~/.hsa-restore/key
+
+set -a; . ~/.hsa-restore/env; set +a
+export RESTIC_PASSWORD_FILE=~/.hsa-restore/key
+export DATA_DIR=~/code/hsa-tracker/data      # only used for the printed advice
+export RESTORE_TARGET=/tmp/hsa-from-pi
+./scripts/hsa-restore.sh
+
+rm -rf ~/.hsa-restore /tmp/hsa-from-pi
+```
+
+</details>
 
 ## Checking on it
 

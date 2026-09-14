@@ -8,6 +8,11 @@ node_modules
 /.svelte-kit
 /build
 /data
+# Safety copies left by the backup and pull scripts. Same contents as /data —
+# receipts and all — so they must never be committable.
+/data.local-*
+/data.restored-*
+/data.broken-*
 
 # OS
 .DS_Store
