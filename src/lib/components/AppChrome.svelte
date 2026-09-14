@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import Cropper from 'svelte-easy-crop';
 	import Icon from './Icon.svelte';
+	import ImageCropper from './ImageCropper.svelte';
 
 	interface Props {
 		/** Which section is being viewed, for the nav and tab-bar highlight. */
@@ -19,9 +19,7 @@
 	let previewUrl = $state<string | null>(null);
 	let pickedFile = $state<File | null>(null);
 	let canCrop = $state(false);
-	let crop = $state({ x: 0, y: 0 });
-	let zoom = $state(1);
-	let aspect = $state(3 / 4);
+	/** The chosen crop in natural image pixels, straight from the cropper. */
 	let pixels = $state<{ x: number; y: number; width: number; height: number } | null>(null);
 	let amountText = $state('');
 
@@ -43,8 +41,6 @@
 		pickedFile = null;
 		canCrop = false;
 		pixels = null;
-		crop = { x: 0, y: 0 };
-		zoom = 1;
 		addError = null;
 		amountText = '';
 		filed = null;
@@ -83,8 +79,6 @@
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
 		pickedFile = f;
 		pixels = null;
-		crop = { x: 0, y: 0 };
-		zoom = 1;
 
 		if (f.type === 'application/pdf') {
 			canCrop = false;
@@ -255,31 +249,7 @@
 				</div>
 
 				{#if previewUrl && canCrop}
-					<div class="crop-wrap">
-						<Cropper
-							image={previewUrl}
-							bind:crop
-							bind:zoom
-							{aspect}
-							oncropcomplete={(e) => (pixels = e.pixels)}
-						/>
-					</div>
-					<label class="zoom"
-						>Zoom
-						<input type="range" min="1" max="3" step="0.05" bind:value={zoom} />
-					</label>
-
-					<div class="aspect-row">
-						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 3 / 4)}>
-							Portrait
-						</button>
-						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 1)}>
-							Square
-						</button>
-						<button type="button" class="btn btn-secondary" onclick={() => (aspect = 4 / 3)}>
-							Landscape
-						</button>
-					</div>
+					<ImageCropper src={previewUrl} bind:crop={pixels} />
 				{:else if pickedFile}
 					<p class="hint">{pickedFile.name} - will upload as-is</p>
 				{/if}
@@ -509,24 +479,7 @@
 		color: var(--color-danger);
 		margin: 0;
 	}
-	.crop-wrap {
-		position: relative;
-		height: 260px;
-		background: var(--color-neutral-900);
-		border-radius: var(--radius-sm);
-	}
 	.file-row {
-		display: flex;
-		gap: var(--space-3);
-	}
-	.zoom {
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		gap: var(--space-3);
-		font-size: 12px;
-	}
-	.aspect-row {
 		display: flex;
 		gap: var(--space-3);
 	}
