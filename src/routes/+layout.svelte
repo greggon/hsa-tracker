@@ -18,7 +18,14 @@
 <Toaster />
 
 <footer>
-	<small>{data.build.sha} · {data.build.time}</small>
+	<small>
+		{data.build.sha} ·
+		{#if data.build.timeISO}
+			<time datetime={data.build.timeISO}>{data.build.time}</time>
+		{:else}
+			{data.build.time}
+		{/if}
+	</small>
 </footer>
 
 <style>

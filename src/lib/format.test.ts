@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { money, pretty, prettyShort, splitMoney } from './format';
+import { buildTime, money, pretty, prettyShort, splitMoney } from './format';
 
 describe('money', () => {
 	it('formats cents as dollars', () => {
@@ -38,5 +38,27 @@ describe('date formatting', () => {
 
 	it('drops the year where it would be noise', () => {
 		expect(prettyShort('2026-03-09')).toBe('Mar 9');
+	});
+});
+
+describe('buildTime', () => {
+	it('renders a CI timestamp readably in UTC', () => {
+		expect(buildTime('2026-09-14T21:55:03+00:00')).toBe('14 Sep 2026, 21:55 UTC');
+	});
+
+	it('converts an offset timestamp to UTC rather than trusting its wall clock', () => {
+		// 17:55 in New York is 21:55 UTC — the same instant as the case above.
+		expect(buildTime('2026-09-14T17:55:03-04:00')).toBe('14 Sep 2026, 21:55 UTC');
+	});
+
+	it('pads single-digit days and hours so the footer does not jitter', () => {
+		expect(buildTime('2026-01-05T04:07:00Z')).toBe('05 Jan 2026, 04:07 UTC');
+	});
+
+	it('passes through the values that are not dates', () => {
+		// `local` is the dev fallback; `unknown` is the Dockerfile's default.
+		expect(buildTime('local')).toBe('local');
+		expect(buildTime('unknown')).toBe('unknown');
+		expect(buildTime('')).toBe('');
 	});
 });

@@ -46,3 +46,46 @@ export function pretty(iso: string): string {
 export function prettyShort(iso: string): string {
 	return localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+const BUILD_MONTHS = [
+	'Jan',
+	'Feb',
+	'Mar',
+	'Apr',
+	'May',
+	'Jun',
+	'Jul',
+	'Aug',
+	'Sep',
+	'Oct',
+	'Nov',
+	'Dec'
+];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * The CI build timestamp in the footer.
+ *
+ * Unlike the service dates above, this one is pinned to UTC rather than the
+ * viewer's locale: the footer renders during SSR and again on hydration, and a
+ * timezone-dependent string differs between the two. CI stamps are UTC anyway.
+ *
+ * Hand-formatted rather than run through `toLocaleDateString` because ICU is
+ * not stable across Node builds — `en-GB` abbreviates September to "Sept" while
+ * every other month gets three letters, so the footer width would change with
+ * the month.
+ *
+ * Values that are not dates pass through unchanged: the Dockerfile defaults
+ * BUILD_TIME to "unknown" and local dev has no value, and both read better than
+ * "Invalid Date".
+ */
+export function buildTime(value: string): string {
+	const d = new Date(value);
+	if (Number.isNaN(d.getTime())) return value;
+
+	return (
+		`${pad2(d.getUTCDate())} ${BUILD_MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ` +
+		`${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())} UTC`
+	);
+}
