@@ -87,24 +87,41 @@
 <svelte:window onkeydown={onKeydown} />
 <svelte:head><title>{title} · HSA Saver</title></svelte:head>
 
+{#snippet fileActions()}
+	{#if doc}
+		<a
+			class="btn btn-secondary"
+			href={resolve('/documents/[id=integer]', { id: String(doc) })}
+			download={data.receipt.originalFilename ?? 'receipt'}
+		>
+			<Icon name="download" size={16} />
+			Download original
+		</a>
+	{/if}
+	<button class="btn btn-secondary danger" onclick={() => confirmEl?.showModal()}>
+		<Icon name="trash" size={16} />
+		Delete
+	</button>
+{/snippet}
+
 <div class="app">
 	<header class="bar">
-		<a class="btn btn-ghost back" href={resolve('/receipts')}>
-			<Icon name="chevronLeft" size={15} width={2} />
-			All receipts
+		<!-- The href is the fallback for a new tab or no script; a plain click goes
+		     back the way Save and Escape do, to wherever the receipt was opened from. -->
+		<a
+			class="btn btn-ghost back"
+			href={resolve('/receipts')}
+			onclick={(event) => {
+				event.preventDefault();
+				leave();
+			}}
+		>
+			<Icon name="chevronLeft" size={16} width={2} />
+			Back
 		</a>
-		<span class="title">{title}</span>
+		<h1 class="title">{title}</h1>
 		<div class="bar-actions">
-			{#if doc}
-				<a
-					class="btn btn-secondary"
-					href={resolve('/documents/[id=integer]', { id: String(doc) })}
-					download={data.receipt.originalFilename ?? 'receipt'}
-				>
-					Download original
-				</a>
-			{/if}
-			<button class="btn btn-secondary" onclick={() => confirmEl?.showModal()}>Delete</button>
+			{@render fileActions()}
 		</div>
 	</header>
 
@@ -173,7 +190,7 @@
 				}}
 			>
 				<div class="fld">
-					<label for="amount">Amount <span class="opt">blank if unreadable</span></label>
+					<label for="amount">Amount <span class="opt">leave blank if unreadable</span></label>
 					<input
 						id="amount"
 						class="input amount"
@@ -211,7 +228,7 @@
 				<hr class="hr" />
 
 				<div class="audit">
-					<div class="kick">Will this hold up?</div>
+					<h2 class="kick">Will this hold up?</h2>
 					<ul>
 						{#each checks as c (c.label)}
 							<li class={c.state}>
@@ -222,7 +239,9 @@
 					</ul>
 				</div>
 
-				<div class="actions">
+				<!-- Pinned to the bottom of a phone screen, like the capture sheet's
+				     submit, so Save is in reach from the image as well as the form. -->
+				<div class="save-bar">
 					<button type="submit" class="btn btn-primary grow" disabled={saving}>
 						{saving ? 'Saving…' : 'Save changes'}
 					</button>
@@ -259,11 +278,19 @@
 					longer counted in your total.
 				</p>
 			{/if}
+
+			<!-- Phones only: the bar has no room for these, and a destructive
+			     action should not have the most reachable spot anyway. -->
+			<section class="file-section" aria-labelledby="file-heading">
+				<hr class="hr" />
+				<h2 class="kick" id="file-heading">File</h2>
+				{@render fileActions()}
+			</section>
 		</div>
 	</div>
 </div>
 
-<dialog bind:this={confirmEl}>
+<dialog class="modal" bind:this={confirmEl}>
 	<h2>Delete this receipt?</h2>
 	<p class="dialog-body">
 		It disappears from your vault and stops counting toward your total. The image itself is kept, so
@@ -304,19 +331,25 @@
 		display: flex;
 		align-items: center;
 		gap: 14px;
-		padding: 14px 22px;
-		border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+		padding: 14px var(--gutter);
+		border-bottom: 1px solid var(--color-rule);
 	}
 	.back {
-		font-size: 13.5px;
+		flex: none;
+		font-size: 14px;
 		padding: 0;
 		gap: 6px;
 	}
 	.title {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
+		flex: 1;
+		min-width: 0;
+		margin: 0 0 0 6px;
 		font-size: 14px;
-		margin-left: 6px;
+		line-height: 1.3;
+		letter-spacing: normal;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.bar-actions {
 		margin-left: auto;
@@ -334,7 +367,7 @@
 
 	.viewer {
 		min-width: 0;
-		padding: 22px;
+		padding: 22px var(--gutter);
 		/* The artboard recesses the image well below the page ground. Nocturne has
 		   no token darker than --color-bg, and shade mixed from black is a shadow
 		   rather than a colour, which the system permits. */
@@ -359,13 +392,13 @@
 	}
 	.file-meta {
 		margin-top: 12px;
-		font-size: 11.5px;
-		color: color-mix(in srgb, var(--color-text) 42%, transparent);
+		font-size: 11px;
+		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
 
 	.panel {
 		min-width: 0;
-		padding: 26px 24px;
+		padding: 26px var(--gutter);
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
@@ -374,26 +407,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-6);
-	}
-	.fld {
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-	}
-	.fld label {
-		font-size: 11px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
-	}
-	.opt {
-		color: color-mix(in srgb, var(--color-text) 35%, transparent);
-	}
-	.amount {
-		min-height: 46px;
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 22px;
-		letter-spacing: -0.02em;
-		font-variant-numeric: tabular-nums;
 	}
 	.pair {
 		display: flex;
@@ -404,13 +417,9 @@
 		min-width: 0;
 	}
 
-	.kick {
-		font-size: 10px;
-		line-height: 1;
-		letter-spacing: 0.11em;
-		text-transform: uppercase;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
-		margin-bottom: 11px;
+	h2.kick {
+		margin: 0 0 11px;
+		font-weight: 400;
 	}
 	.audit ul {
 		list-style: none;
@@ -433,6 +442,7 @@
 		color: var(--color-danger);
 	}
 
+	.save-bar,
 	.actions {
 		display: flex;
 		justify-content: flex-end;
@@ -448,16 +458,23 @@
 	}
 	.danger {
 		color: var(--color-danger);
+		border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
+	}
+	.btn-primary.danger {
 		border-color: var(--color-danger);
 	}
 	.note {
 		margin: 0;
-		font-size: 11.5px;
+		font-size: 12.5px;
 		line-height: 1.5;
 		color: color-mix(in srgb, var(--color-text) 45%, transparent);
 	}
 
-	@media (max-width: 820px) {
+	.file-section {
+		display: none;
+	}
+
+	@media (max-width: 900px) {
 		.split {
 			grid-template-columns: minmax(0, 1fr);
 		}
@@ -469,18 +486,61 @@
 		}
 	}
 
-	dialog {
-		color: var(--color-text);
-		background: var(--color-surface);
-		border: none;
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
-		padding: var(--space-6);
-		width: min(28rem, 92vw);
+	@media (max-width: 700px) {
+		.bar {
+			gap: 4px;
+			padding: 6px var(--gutter) 6px calc(var(--gutter) - 12px);
+		}
+		.back {
+			padding: 0 10px 0 8px;
+		}
+		.title {
+			font-size: 15px;
+		}
+		.bar-actions {
+			display: none;
+		}
+		.viewer {
+			padding-block: 20px;
+		}
+		.receipt {
+			height: 300px;
+		}
+		.panel {
+			padding: 24px var(--gutter);
+		}
+		.save-bar {
+			position: fixed;
+			z-index: 5;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			padding: 12px var(--gutter) calc(16px + env(safe-area-inset-bottom));
+			background: color-mix(in srgb, var(--color-bg) 94%, transparent);
+			backdrop-filter: blur(12px);
+			box-shadow: 0 -1px 0 var(--color-rule);
+		}
+		.grow,
+		.block {
+			min-height: 48px;
+			font-size: 15px;
+		}
+		.file-section {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.file-section .hr {
+			margin: var(--space-2) 0 var(--space-4);
+		}
+		.file-section h2.kick {
+			margin-bottom: 2px;
+		}
+		.file-section .btn {
+			width: 100%;
+		}
 	}
-	dialog::backdrop {
-		background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
-	}
+
 	dialog h2 {
 		font-size: 20px;
 	}

@@ -23,7 +23,7 @@
 	main {
 		max-width: 26rem;
 		margin: 0 auto;
-		padding: 18vh var(--space-6) var(--space-6);
+		padding: 18vh var(--gutter) var(--space-6);
 		text-align: center;
 	}
 	.code {

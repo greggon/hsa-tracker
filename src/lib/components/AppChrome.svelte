@@ -3,6 +3,7 @@
 	 * The shared frame: header, phone tab bar, and the capture sheet all three
 	 * ways of reaching it open. Used by every page so they cannot drift apart.
 	 */
+	import { flushSync } from 'svelte';
 	import { resolve } from '$app/paths';
 	import CaptureSheet, { type CaptureRequest } from './CaptureSheet.svelte';
 	import Icon from './Icon.svelte';
@@ -29,9 +30,25 @@
 		providers = [],
 		capture = $bindable(null)
 	}: Props = $props();
+
+	/**
+	 * On a phone the vault's search starts as an icon: the full-width field
+	 * would push the hero figure down, and all it filters is the list below it.
+	 * The receipts list, where the list is the whole page, keeps the field.
+	 */
+	const collapsible = $derived(current === 'vault');
+	let searchOpen = $state(false);
+	let searchEl = $state<HTMLInputElement | null>(null);
+	const searching = $derived(searchOpen || search !== '');
+
+	/** Focused synchronously, inside the tap, or iOS will not raise the keyboard. */
+	function openSearch() {
+		flushSync(() => (searchOpen = true));
+		searchEl?.focus();
+	}
 </script>
 
-<header class="nav">
+<header class="nav" class:collapsible class:searching>
 	<a class="brand" href={resolve('/')}>
 		<Icon name="vault" size={17} />
 		HSA Saver
@@ -43,13 +60,25 @@
 		</a>
 	</nav>
 	<div class="nav-right">
+		{#if collapsible && !searching}
+			<button
+				type="button"
+				class="btn btn-icon search-toggle"
+				aria-label="Search receipts"
+				onclick={openSearch}
+			>
+				<Icon name="search" size={20} width={1.8} />
+			</button>
+		{/if}
 		<label class="visually-hidden" for="chrome-search">Search provider or amount</label>
 		<input
 			id="chrome-search"
 			class="input search"
 			type="search"
 			placeholder="Search provider or amount"
+			bind:this={searchEl}
 			bind:value={search}
+			onblur={() => (searchOpen = false)}
 		/>
 		<button class="btn btn-primary add-desktop" onclick={() => (capture = 'form')}>
 			<Icon name="plus" size={14} width={2} />
@@ -63,21 +92,12 @@
 <CaptureSheet bind:request={capture} {providers} {current} />
 
 <style>
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-
 	.nav {
 		display: flex;
 		align-items: center;
 		gap: var(--space-8);
-		padding: 14px 26px;
-		border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+		padding: 14px var(--gutter);
+		border-bottom: 1px solid var(--color-rule);
 	}
 	.brand {
 		display: flex;
@@ -115,6 +135,9 @@
 		width: 220px;
 		min-height: 32px;
 	}
+	.search-toggle {
+		display: none;
+	}
 
 	@media (max-width: 900px) {
 		.nav {
@@ -135,11 +158,29 @@
 		.add-desktop {
 			display: none;
 		}
-		.nav {
-			padding: 14px 20px;
-		}
 		.nav-right {
 			margin-left: 0;
+		}
+		.search {
+			min-height: 44px;
+		}
+
+		/* Vault, search closed: the icon sits beside the brand on one row. */
+		.collapsible:not(.searching) {
+			flex-wrap: nowrap;
+			padding-block: 6px;
+			padding-right: calc(var(--gutter) - 12px);
+		}
+		.collapsible:not(.searching) .nav-right {
+			width: auto;
+			margin-left: auto;
+		}
+		.collapsible:not(.searching) .search {
+			display: none;
+		}
+		.search-toggle {
+			display: inline-flex;
+			color: color-mix(in srgb, var(--color-text) 75%, transparent);
 		}
 	}
 </style>

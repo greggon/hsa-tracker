@@ -33,7 +33,11 @@
 		/* Nocturne rules fade to transparent over 48px at each end rather
 		   than stopping cleanly. */
 		margin-top: var(--space-8);
-		padding: var(--space-4) var(--space-6);
+		/* Clears whatever bar is fixed to the bottom of a phone screen; the
+		   pages themselves no longer pad for it, so the footer cannot end up
+		   underneath it. */
+		padding: var(--space-4) var(--gutter)
+			calc(var(--space-4) + var(--bottom-bar) + env(safe-area-inset-bottom));
 		background: linear-gradient(
 				to right,
 				transparent,

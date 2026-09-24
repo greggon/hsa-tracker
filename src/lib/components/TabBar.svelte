@@ -20,7 +20,7 @@
 <nav class="tabs" aria-label="Sections">
 	{#each SECTIONS as section (section.key)}
 		{#if current === section.key}
-			<span class="tab current">
+			<span class="tab current" aria-current="page">
 				<Icon name={section.icon} size={21} width={1.7} />{section.label}
 			</span>
 		{:else}
@@ -47,19 +47,23 @@
 		z-index: 5;
 		align-items: center;
 		justify-content: space-around;
-		padding: 11px 24px calc(16px + env(safe-area-inset-bottom));
+		padding: 8px 24px calc(16px + env(safe-area-inset-bottom));
 		background: color-mix(in srgb, var(--color-bg) 94%, transparent);
 		backdrop-filter: blur(12px);
-		box-shadow: 0 -1px 0 color-mix(in srgb, var(--color-text) 8%, transparent);
+		box-shadow: 0 -1px 0 var(--color-rule);
 	}
 	.tab {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center;
 		gap: 3px;
-		font-size: 10px;
+		min-width: 64px;
+		min-height: 44px;
+		font-size: 11px;
+		line-height: 1.4;
 		text-decoration: none;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		color: color-mix(in srgb, var(--color-text) 55%, transparent);
 	}
 	.tab.current {
 		color: var(--color-accent);

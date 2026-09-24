@@ -45,12 +45,13 @@
 		z-index: 60;
 		left: 50%;
 		transform: translateX(-50%);
-		/* Clears the phone tab bar, which is 92px including its safe-area pad. */
-		bottom: calc(104px + env(safe-area-inset-bottom));
+		/* Clears whatever bar is fixed to the bottom of a phone screen: the tab
+		   bar, the detail page's save bar, or nothing. */
+		bottom: calc(var(--bottom-bar) + 12px + env(safe-area-inset-bottom));
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		width: min(24rem, calc(100vw - 32px));
+		width: min(24rem, calc(100vw - 2 * var(--gutter)));
 		pointer-events: none;
 	}
 
@@ -110,6 +111,18 @@
 		background: color-mix(in srgb, var(--color-text) 9%, transparent);
 		color: var(--color-text);
 	}
+	/* A 44px touch target around the small visual mark, without growing the
+	   toast: the negative margins give the extra back. */
+	@media (max-width: 700px) {
+		.toast {
+			align-items: center;
+		}
+		.close {
+			width: 44px;
+			height: 44px;
+			margin: -11px -11px -11px 0;
+		}
+	}
 	.close:focus-visible {
 		outline: 2px solid var(--color-accent);
 		outline-offset: 1px;
@@ -118,7 +131,7 @@
 	@media (min-width: 701px) {
 		.toaster {
 			left: auto;
-			right: 26px;
+			right: var(--gutter);
 			transform: none;
 			bottom: 26px;
 		}

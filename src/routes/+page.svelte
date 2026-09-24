@@ -5,6 +5,7 @@
 	import ReceiptList from '$lib/components/ReceiptList.svelte';
 	import VaultChart from '$lib/components/VaultChart.svelte';
 	import { money, pretty, prettyShort, splitMoney } from '$lib/format';
+	import { searchReceipts } from '$lib/search';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -19,17 +20,7 @@
 
 	const normalised = $derived(query.trim().toLowerCase());
 
-	const matches = $derived(
-		normalised === ''
-			? data.expenses
-			: data.expenses.filter((e) => {
-					const amount = e.amountCents == null ? '' : (e.amountCents / 100).toFixed(2);
-					return (
-						(e.provider ?? '').toLowerCase().includes(normalised) ||
-						amount.includes(normalised.replace(/[$,]/g, ''))
-					);
-				})
-	);
+	const matches = $derived(searchReceipts(data.expenses, query));
 
 	const visible = $derived(normalised === '' ? matches.slice(0, RECENT) : matches);
 
@@ -47,7 +38,7 @@
 
 	<div class="main" class:has-rail={data.stats.incomplete.length > 0}>
 		<section class="hero">
-			<div class="kick accent">Total eligible · unreimbursed</div>
+			<h1 class="kick accent">Total eligible · unreimbursed</h1>
 			<div class="total">
 				<span class="figure">{hero.whole}<span class="frac">{hero.frac}</span></span>
 				{#if data.stats.currentYearCents > 0}
@@ -83,7 +74,7 @@
 
 		{#if data.stats.incomplete.length > 0}
 			<aside class="rail" id="needs-a-field">
-				<div class="kick">Needs a field · {data.stats.incomplete.length}</div>
+				<h2 class="kick">Needs a field · {data.stats.incomplete.length}</h2>
 				<ul class="needs">
 					{#each data.stats.incomplete as r (r.id)}
 						<li>
@@ -110,7 +101,7 @@
 
 	<section class="filed-section">
 		<div class="filed-head">
-			<span class="kick">{normalised === '' ? 'Recently filed' : 'Matching receipts'}</span>
+			<h2 class="kick">{normalised === '' ? 'Recently filed' : 'Matching receipts'}</h2>
 			{#if normalised === ''}
 				<a class="filed-count" href={resolve('/receipts')}>
 					All {data.expenses.length} receipt{data.expenses.length === 1 ? '' : 's'} →
@@ -139,13 +130,11 @@
 		margin: 0 auto;
 	}
 
-	/* The artboard's `.kick` — an uppercase micro-label above each block. */
-	.kick {
-		font-size: 10px;
-		line-height: 1;
-		letter-spacing: 0.11em;
-		text-transform: uppercase;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+	/* `.kick` lives in app.css; used on headings here, so undo their defaults. */
+	h1.kick,
+	h2.kick {
+		margin: 0;
+		font-weight: 400;
 	}
 	.kick.accent {
 		color: var(--color-accent);
@@ -163,7 +152,7 @@
 	}
 	.hero {
 		min-width: 0;
-		padding: 32px 28px 24px;
+		padding: 32px var(--gutter) 24px;
 		/* --color-accent-800 is the artboard's rgba(66,58,106) bloom. */
 		background: radial-gradient(
 			115% 150% at 3% 0%,
@@ -213,7 +202,7 @@
 
 	/* — rail — */
 	.rail {
-		border-left: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+		border-left: 1px solid var(--color-rule);
 		padding: 32px 24px;
 		display: flex;
 		flex-direction: column;
@@ -244,19 +233,19 @@
 		font-size: 13px;
 	}
 	.need-who {
-		font-size: 11.5px;
+		font-size: 12.5px;
 		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
 	.rail-note {
 		margin: 0;
-		font-size: 11.5px;
+		font-size: 12.5px;
 		line-height: 1.5;
-		color: color-mix(in srgb, var(--color-text) 40%, transparent);
+		color: color-mix(in srgb, var(--color-text) 45%, transparent);
 	}
 
 	/* — recently filed — */
 	.filed-section {
-		padding: 6px 26px 26px;
+		padding: 6px var(--gutter) 26px;
 	}
 	.filed-head {
 		display: flex;
@@ -278,23 +267,48 @@
 		}
 		.rail {
 			border-left: none;
-			border-top: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent);
+			border-top: 1px solid var(--color-rule);
 		}
 	}
 
 	/* Phone: tab bar replaces the nav links, rows replace the table. */
 	@media (max-width: 700px) {
-		.app {
-			padding-bottom: 92px;
-		}
 		.hero {
-			padding: 26px 20px 20px;
+			padding: 26px var(--gutter) 20px;
 		}
+		/* The rail becomes a sideways strip, so a long list of incomplete
+		   receipts does not push "Recently filed" off the screen. */
 		.rail {
-			padding: 26px 20px;
+			padding: 22px 0 22px var(--gutter);
+		}
+		.needs {
+			flex-direction: row;
+			overflow-x: auto;
+			padding-right: var(--gutter);
+			scroll-snap-type: x proximity;
+		}
+		.needs li {
+			flex: none;
+			width: 210px;
+			scroll-snap-align: start;
+		}
+		.need {
+			min-height: 56px;
+			justify-content: center;
+		}
+		.need-what {
+			font-size: 14px;
+		}
+		.rail-note {
+			padding-right: var(--gutter);
 		}
 		.filed-section {
-			padding: 6px 20px 20px;
+			padding: 6px var(--gutter) 20px;
+		}
+		.filed-count {
+			display: flex;
+			align-items: center;
+			min-height: 44px;
 		}
 		.figure {
 			font-size: 48px;

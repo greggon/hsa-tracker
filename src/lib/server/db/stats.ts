@@ -149,7 +149,6 @@ export type ReceiptRow = {
 	amountCents: number | null;
 	reimbursedAt: Date | null;
 	docId: number | null;
-	hasThumb: boolean;
 	/** Empty when nothing is missing. */
 	reasons: IncompleteReason[];
 };
@@ -157,9 +156,7 @@ export type ReceiptRow = {
 /**
  * Live receipts, newest first, optionally narrowed to one filing year.
  *
- * Shared so a row's status tag means the same thing wherever it is drawn. The
- * thumbnail is reported as a flag, not bytes: they are fetched per row from
- * /documents/[id]?thumb rather than inlined into the page.
+ * Shared so a row's status tag means the same thing wherever it is drawn.
  */
 export function listReceipts(userId: number, options: { year?: number } = {}): ReceiptRow[] {
 	const year = options.year ? like(expenses.serviceDate, `${options.year}-%`) : undefined;
@@ -171,15 +168,14 @@ export function listReceipts(userId: number, options: { year?: number } = {}): R
 			provider: expenses.provider,
 			amountCents: expenses.amountCents,
 			reimbursedAt: expenses.reimbursedAt,
-			docId: documents.id,
-			hasThumb: sql<number>`(${documents.thumb} is not null)`
+			docId: documents.id
 		})
 		.from(expenses)
 		.leftJoin(documents, and(eq(documents.expenseId, expenses.id), eq(documents.isPrimary, 1)))
 		.where(and(liveExpenses(userId), year))
 		.orderBy(desc(expenses.serviceDate), desc(expenses.id))
 		.all()
-		.map((r) => ({ ...r, hasThumb: r.hasThumb === 1, reasons: missingFrom(r) }));
+		.map((r) => ({ ...r, reasons: missingFrom(r) }));
 }
 
 /**

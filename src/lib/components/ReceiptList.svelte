@@ -32,23 +32,6 @@
 	{/if}
 {/snippet}
 
-{#snippet thumb(e: ReceiptRow, w: number, h: number)}
-	{#if e.docId && e.hasThumb}
-		<img
-			class="thumb"
-			style="width:{w}px;height:{h}px"
-			src={resolve('/documents/[id=integer]', { id: String(e.docId) }) + '?thumb'}
-			alt=""
-			width={w}
-			height={h}
-			loading="lazy"
-			decoding="async"
-		/>
-	{:else}
-		<div class="thumb placeholder" style="width:{w}px;height:{h}px"></div>
-	{/if}
-{/snippet}
-
 {#if rows.length === 0}
 	<p class="empty">{empty}</p>
 {:else}
@@ -56,7 +39,6 @@
 		<table class="table">
 			<thead>
 				<tr>
-					<th class="col-thumb"><span class="visually-hidden">Receipt image</span></th>
 					<th>Date of service</th>
 					<th>Provider</th>
 					<th class="right">Amount</th>
@@ -66,7 +48,6 @@
 			<tbody>
 				{#each rows as e (e.id)}
 					<tr>
-						<td>{@render thumb(e, 26, 33)}</td>
 						<td class="date">{pretty(e.serviceDate)}</td>
 						<td>
 							<!-- The link's ::after covers the whole row, so anywhere in it opens
@@ -88,7 +69,6 @@
 		{#each rows as e (e.id)}
 			<li>
 				<a class="cardrow" href={href(e.id)}>
-					{@render thumb(e, 34, 42)}
 					<span class="cardrow-main">
 						<span class="cardrow-provider">{e.provider ?? 'No provider'}</span>
 						<span class="cardrow-date">{pretty(e.serviceDate)}</span>
@@ -104,46 +84,6 @@
 {/if}
 
 <style>
-	.visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
-		white-space: nowrap;
-	}
-	.table-wrap {
-		overflow-x: auto;
-	}
-	.right {
-		text-align: right;
-	}
-	.col-thumb {
-		width: 38px;
-	}
-	.col-status {
-		width: 130px;
-	}
-	.date {
-		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--color-text) 80%, transparent);
-	}
-	.amount {
-		font-variant-numeric: tabular-nums;
-	}
-	.amount.unread {
-		color: color-mix(in srgb, var(--color-text) 40%, transparent);
-	}
-	.thumb {
-		object-fit: cover;
-		border-radius: 3px;
-		box-shadow: inset 0 0 0 1px var(--color-divider);
-		flex: none;
-	}
-	.placeholder {
-		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
-	}
-
 	/* Whole-row target: the row is the positioning context and the link stretches
 	   across it, so clicking any cell — or the gap between them — opens the
 	   receipt, while the tab order still holds one link per row. */
@@ -176,17 +116,21 @@
 		margin: 0;
 		padding: 0;
 	}
+	/* Nocturne's fading rule, the same one the desktop table rows paint. */
 	.cardrow {
 		display: flex;
 		align-items: center;
 		gap: 13px;
 		padding: 13px 0;
+		min-height: 44px;
 		color: inherit;
 		text-decoration: none;
 		background: linear-gradient(
 				to right,
-				color-mix(in srgb, var(--color-text) 10%, transparent),
-				color-mix(in srgb, var(--color-text) 10%, transparent)
+				transparent,
+				var(--color-divider) 48px,
+				var(--color-divider) calc(100% - 48px),
+				transparent
 			)
 			no-repeat bottom / 100% 1px;
 	}
@@ -206,8 +150,8 @@
 		text-overflow: ellipsis;
 	}
 	.cardrow-date {
-		font-size: 11.5px;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		font-size: 12.5px;
+		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
 	.cardrow-right {
 		display: flex;

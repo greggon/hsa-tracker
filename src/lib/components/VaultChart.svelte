@@ -79,8 +79,13 @@
 {:else}
 	<div
 		class="chart-wrap"
+		onpointerdown={onMove}
 		onpointermove={onMove}
-		onpointerleave={() => (hover = null)}
+		onpointerleave={(e) => {
+			// A finger lifting also "leaves"; keep its reading up until the next
+			// touch, since there is no hover to bring it back.
+			if (e.pointerType === 'mouse') hover = null;
+		}}
 		role="presentation"
 	>
 		<svg
@@ -141,6 +146,7 @@
 	<!-- Every year will not fit on a phone; the span is what matters there. -->
 	<div class="axis axis-compact">
 		<span>{chart.ticks[0]?.label}</span>
+		{#if mode === 'cumulative'}<span>Touch the line to read a day</span>{/if}
 		<span>today</span>
 	</div>
 {/if}
@@ -160,6 +166,9 @@
 	   exactly onto it, so the marker still lands on the line. */
 	.chart-wrap {
 		position: relative;
+		/* Vertical drags still scroll the page; horizontal ones scrub the line
+		   instead of being taken by the browser and cancelling the pointer. */
+		touch-action: pan-y;
 	}
 	.guide {
 		position: absolute;
@@ -237,8 +246,8 @@
 		display: flex;
 		justify-content: space-between;
 		margin-top: 9px;
-		font-size: 10.5px;
-		color: color-mix(in srgb, var(--color-text) 38%, transparent);
+		font-size: 11px;
+		color: color-mix(in srgb, var(--color-text) 45%, transparent);
 	}
 	/* Ticks carry their own position, so they are placed rather than distributed. */
 	.axis-timed {
@@ -265,8 +274,20 @@
 	}
 
 	@media (max-width: 700px) {
+		/* The toggle spans the width, one thumb-sized half per mode. */
+		.chart-head {
+			justify-content: stretch;
+		}
+		.seg {
+			flex: 1;
+		}
+		.seg-opt {
+			flex: 1;
+			justify-content: center;
+			font-size: 14px;
+		}
 		.chart {
-			height: 94px;
+			height: 110px;
 		}
 		.axis {
 			display: none;

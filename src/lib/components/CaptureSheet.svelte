@@ -127,7 +127,7 @@
 </script>
 
 <dialog
-	class="sheet"
+	class="modal sheet"
 	bind:this={dialogEl}
 	onclose={() => {
 		request = null;
@@ -184,7 +184,7 @@
 			}}
 		>
 			<header class="sheet-head">
-				<button type="button" class="btn btn-ghost" onclick={close}>Cancel</button>
+				<button type="button" class="btn btn-ghost sheet-cancel" onclick={close}>Cancel</button>
 				<span class="sheet-title">{pickedFile ? 'Confirm three things' : 'New receipt'}</span>
 				<span class="sheet-spacer"></span>
 			</header>
@@ -224,23 +224,35 @@
 					<p class="hint">{pickedFile.name} - will upload as-is</p>
 				{/if}
 
-				<label class="fld hero-field"
-					>Amount <span class="opt">leave blank if unreadable</span>
+				<!-- Same field markup as the edit page, so the two forms cannot drift. -->
+				<div class="fld">
+					<label for="sheet-amount">Amount <span class="opt">leave blank if unreadable</span></label
+					>
 					<input
-						class="input amount-input"
+						id="sheet-amount"
+						class="input amount"
 						name="amount"
 						type="text"
 						inputmode="decimal"
 						placeholder="$0.00"
 						bind:value={amountText}
 					/>
-				</label>
-				<label class="fld"
-					>Date of service
-					<input class="input" name="serviceDate" type="date" value={today} required />
-				</label>
-				<label class="fld" for="sheet-provider">Provider</label>
-				<ProviderInput id="sheet-provider" bind:value={providerText} suggestions={providers} />
+				</div>
+				<div class="fld">
+					<label for="sheet-date">Date of service</label>
+					<input
+						id="sheet-date"
+						class="input"
+						name="serviceDate"
+						type="date"
+						value={today}
+						required
+					/>
+				</div>
+				<div class="fld">
+					<label for="sheet-provider">Provider</label>
+					<ProviderInput id="sheet-provider" bind:value={providerText} suggestions={providers} />
+				</div>
 
 				{#if addError}<p class="error">{addError}</p>{/if}
 			</div>
@@ -259,18 +271,8 @@
 
 <style>
 	dialog {
-		color: var(--color-text);
-		background: var(--color-surface);
-		border: none;
-		border-radius: var(--radius-lg);
-		box-shadow: var(--shadow-lg);
-		padding: var(--space-6);
-		width: min(28rem, 92vw);
 		max-height: 90vh;
 		overflow-y: auto;
-	}
-	dialog::backdrop {
-		background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 	}
 	.sheet-head {
 		display: none;
@@ -284,38 +286,18 @@
 		font-size: 15px;
 	}
 	.sheet-spacer {
-		width: 52px;
+		width: 76px;
 	}
 	.sheet-body {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: 18px;
 	}
 	.sheet-foot {
 		display: flex;
 		justify-content: flex-end;
 		gap: var(--space-2);
 		margin-top: var(--space-6);
-	}
-	.fld {
-		display: flex;
-		flex-direction: column;
-		gap: 5px;
-		font-size: 12px;
-		color: color-mix(in srgb, var(--color-text) 70%, transparent);
-	}
-	/* Amount is the hero field of the capture flow. */
-	.hero-field .amount-input {
-		min-height: 52px;
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 26px;
-		letter-spacing: -0.02em;
-		font-variant-numeric: tabular-nums;
-	}
-	.opt {
-		font-size: 11px;
-		color: color-mix(in srgb, var(--color-text) 40%, transparent);
 	}
 	.error {
 		color: var(--color-danger);
@@ -358,13 +340,6 @@
 		font-size: 13px;
 		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 		margin-top: 8px;
-	}
-	.kick {
-		font-size: 10px;
-		line-height: 1;
-		letter-spacing: 0.11em;
-		text-transform: uppercase;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
 	}
 	.done-total {
 		margin-top: 36px;
@@ -414,12 +389,32 @@
 			max-height: none;
 			margin: 0;
 			border-radius: 0;
-			padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+			padding: calc(8px + env(safe-area-inset-top)) var(--gutter)
+				calc(20px + env(safe-area-inset-bottom));
 			display: flex;
 			flex-direction: column;
 		}
 		.sheet-head {
 			display: flex;
+			margin: 0 -12px;
+		}
+		.sheet-cancel {
+			width: 76px;
+			justify-content: flex-start;
+			padding-inline: 12px;
+		}
+		.sheet-title {
+			font-size: 16px;
+		}
+		/* Two equal, thumb-sized halves. */
+		.file-row {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 10px;
+		}
+		.file-row .btn {
+			min-height: 48px;
+			font-size: 15px;
 		}
 		.cancel-desktop {
 			display: none;

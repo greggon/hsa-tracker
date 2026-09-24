@@ -190,11 +190,9 @@ describe('against a real database', () => {
 			expect(rows.find((r) => r.id === 1)?.reasons).toEqual([]);
 		});
 
-		it('reports the thumbnail as a flag, never the bytes', () => {
+		it('never carries image bytes', () => {
 			const row = listReceipts(OWNER).find((r) => r.id === 1)!;
-			expect(row.hasThumb).toBe(false); // seeded without a thumb blob
 			expect(row).not.toHaveProperty('thumb');
-			expect(typeof row.hasThumb).toBe('boolean');
 		});
 	});
 

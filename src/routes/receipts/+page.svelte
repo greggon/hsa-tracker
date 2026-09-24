@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import AppChrome from '$lib/components/AppChrome.svelte';
 	import ReceiptList from '$lib/components/ReceiptList.svelte';
 	import { money } from '$lib/format';
+	import { searchReceipts } from '$lib/search';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -11,26 +13,29 @@
 
 	const normalised = $derived(query.trim().toLowerCase());
 
-	const matches = $derived(
-		normalised === ''
-			? data.receipts
-			: data.receipts.filter((e) => {
-					const amount = e.amountCents == null ? '' : (e.amountCents / 100).toFixed(2);
-					return (
-						(e.provider ?? '').toLowerCase().includes(normalised) ||
-						amount.includes(normalised.replace(/[$,]/g, ''))
-					);
-				})
-	);
+	/** A receipt the vault's "needs a field" count includes. */
+	const needsAField = (e: (typeof data.receipts)[number]) =>
+		!e.reimbursedAt && e.reasons.length > 0;
+
+	/** `?needs` narrows the list to those, the same set the vault links to. */
+	const onlyNeeding = $derived(page.url.searchParams.has('needs'));
+
+	const searched = $derived(searchReceipts(data.receipts, query));
+	const matches = $derived(onlyNeeding ? searched.filter(needsAField) : searched);
 
 	/** Only receipts still owed to you count toward the figure the vault shows. */
 	const outstandingCents = $derived(
 		matches.reduce((sum, e) => sum + (e.reimbursedAt ? 0 : (e.amountCents ?? 0)), 0)
 	);
 
-	const needingAField = $derived(
-		matches.filter((e) => !e.reimbursedAt && e.reasons.length > 0).length
-	);
+	const needingAField = $derived(searched.filter(needsAField).length);
+
+	/** The query string for this list with a year and/or `needs` applied. */
+	function listQuery(params: { needs?: boolean; year?: number | null }) {
+		const parts = [params.year ? `year=${params.year}` : '', params.needs ? 'needs=1' : ''];
+		const q = parts.filter(Boolean).join('&');
+		return q ? `?${q}` : '';
+	}
 </script>
 
 <svelte:head><title>Receipts · HSA Saver</title></svelte:head>
@@ -44,25 +49,36 @@
 			{matches.length} receipt{matches.length === 1 ? '' : 's'}
 			<span class="sep">·</span>
 			<span class="outstanding">{money(outstandingCents)} unreimbursed</span>
-			{#if needingAField > 0}
+			{#if onlyNeeding}
 				<span class="sep">·</span>
-				<span class="needs">{needingAField} need{needingAField === 1 ? 's' : ''} a field</span>
+				<a href="{resolve('/receipts')}{listQuery({ year: data.year })}">Show all</a>
+			{:else if needingAField > 0}
+				<span class="sep">·</span>
+				<a href="{resolve('/receipts')}{listQuery({ year: data.year, needs: true })}">
+					{needingAField} need{needingAField === 1 ? 's' : ''} a field
+				</a>
 			{/if}
 		</p>
 
 		{#if data.years.length > 1}
-			<div class="years">
-				<a class="year" class:current={data.year === null} href={resolve('/receipts')}>All</a>
+			<nav class="years" aria-label="Filter by year">
+				<a
+					class="year"
+					class:current={data.year === null}
+					aria-current={data.year === null ? 'page' : undefined}
+					href="{resolve('/receipts')}{listQuery({ needs: onlyNeeding })}">All</a
+				>
 				{#each data.years as year (year)}
 					<a
 						class="year"
 						class:current={data.year === year}
-						href="{resolve('/receipts')}?year={year}"
+						aria-current={data.year === year ? 'page' : undefined}
+						href="{resolve('/receipts')}{listQuery({ year, needs: onlyNeeding })}"
 					>
 						{year}
 					</a>
 				{/each}
-			</div>
+			</nav>
 		{/if}
 	</section>
 
@@ -70,9 +86,11 @@
 		<ReceiptList
 			rows={matches}
 			empty={normalised === ''
-				? data.year
-					? `Nothing filed against ${data.year}.`
-					: 'No receipts filed yet.'
+				? onlyNeeding
+					? 'Nothing here needs a field.'
+					: data.year
+						? `Nothing filed against ${data.year}.`
+						: 'No receipts filed yet.'
 				: `Nothing matches “${query}”.`}
 		/>
 	</section>
@@ -85,7 +103,7 @@
 	}
 
 	.head {
-		padding: 28px 26px 0;
+		padding: 28px var(--gutter) 0;
 	}
 	h1 {
 		font-size: 25px;
@@ -104,9 +122,6 @@
 	.outstanding {
 		color: var(--color-accent-300);
 		font-variant-numeric: tabular-nums;
-	}
-	.needs {
-		color: var(--color-text);
 	}
 
 	.years {
@@ -133,18 +148,32 @@
 	}
 
 	.list {
-		padding: 18px 26px 26px;
+		padding: 18px var(--gutter) 26px;
 	}
 
 	@media (max-width: 700px) {
-		.app {
-			padding-bottom: 92px;
-		}
 		.head {
-			padding: 22px 20px 0;
+			padding: 22px var(--gutter) 0;
+		}
+		/* One row that scrolls sideways, rather than a block that gains a line
+		   every January. It bleeds to the screen edges so it reads as a strip. */
+		.years {
+			flex-wrap: nowrap;
+			overflow-x: auto;
+			margin-inline: calc(-1 * var(--gutter));
+			padding-inline: var(--gutter);
+			scrollbar-width: none;
+		}
+		.year {
+			flex: none;
+			display: flex;
+			align-items: center;
+			min-height: 44px;
+			padding: 0 16px;
+			font-size: 14px;
 		}
 		.list {
-			padding: 16px 20px 20px;
+			padding: 12px var(--gutter) 20px;
 		}
 	}
 </style>

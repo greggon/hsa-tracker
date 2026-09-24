@@ -29,6 +29,9 @@
 		dash: '<path d="M5 12h14"/>',
 		chevronLeft: '<path d="M15 5l-7 7 7 7"/>',
 		receipt: '<path d="M5 3h11l3 3v15H5z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+		download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+		trash: '<path d="M5 7h14M10 7V5h4v2M7 7l1 13h8l1-13"/>',
+		search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
 		chart: '<path d="M4 19h16M5 15l4-5 4 3 5-8"/>',
 		user: '<circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c1.4-3.6 4.1-5.2 7.5-5.2s6.1 1.6 7.5 5.2"/>'
 	} as const;

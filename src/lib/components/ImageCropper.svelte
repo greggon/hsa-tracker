@@ -422,4 +422,15 @@
 	.reset {
 		font-size: 12.5px;
 	}
+
+	@media (max-width: 700px) {
+		.preset {
+			min-height: 44px;
+			padding-inline: 14px;
+			font-size: 14px;
+		}
+		.dims {
+			font-size: 12px;
+		}
+	}
 </style>

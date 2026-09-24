@@ -163,6 +163,12 @@
 	.menu button:hover {
 		background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 	}
+	@media (max-width: 700px) {
+		.menu button {
+			min-height: 44px;
+			font-size: 16px;
+		}
+	}
 	mark {
 		background: none;
 		color: var(--color-accent);
