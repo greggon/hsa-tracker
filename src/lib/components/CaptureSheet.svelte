@@ -137,21 +137,21 @@
 	{#if filed}
 		<!-- The payoff frame: the number moved. -->
 		<div class="done">
-			<div class="done-mark"><Icon name="check" size={30} width={1.8} /></div>
-			<div class="done-title">Filed</div>
-			<p class="done-sub">
+			<div class="done-mark"><Icon name="check" size={36} /></div>
+			<h2 class="done-title md-headline-small">Filed</h2>
+			<p class="done-sub md-body-medium">
 				{filed.provider ?? 'No provider'} · {pretty(filed.serviceDate)} · {money(filed.amountCents)}
 			</p>
 			<div class="done-total">
-				<div class="kick">Total eligible · unreimbursed</div>
-				<div class="done-figure">{money(filed.totalAfterCents)}</div>
+				<div class="md-title-small">Total eligible · unreimbursed</div>
+				<div class="done-figure md-display-medium">{money(filed.totalAfterCents)}</div>
 				{#if filed.totalAfterCents !== filed.totalBeforeCents}
-					<div class="done-was">was {money(filed.totalBeforeCents)}</div>
+					<div class="md-body-medium">was {money(filed.totalBeforeCents)}</div>
 				{/if}
 			</div>
 			<div class="done-actions">
-				<button class="btn btn-primary btn-block tall" onclick={fileAnother}>Add another</button>
-				<button class="btn btn-secondary btn-block tall" onclick={close}>
+				<button class="btn btn-filled btn-lg btn-block" onclick={fileAnother}>Add another</button>
+				<button class="btn btn-outlined btn-lg btn-block" onclick={close}>
 					Back to my {current === 'receipts' ? 'receipts' : 'vault'}
 				</button>
 			</div>
@@ -184,15 +184,16 @@
 			}}
 		>
 			<header class="sheet-head">
-				<button type="button" class="btn btn-ghost sheet-cancel" onclick={close}>Cancel</button>
-				<span class="sheet-title">{pickedFile ? 'Confirm three things' : 'New receipt'}</span>
-				<span class="sheet-spacer"></span>
+				<button type="button" class="icon-btn sheet-close" aria-label="Close" onclick={close}>
+					<Icon name="close" />
+				</button>
+				<h2 class="sheet-title">{pickedFile ? 'Confirm three things' : 'New receipt'}</h2>
 			</header>
 
 			<div class="sheet-body">
 				<div class="file-row">
-					<label class="btn btn-secondary">
-						<Icon name="camera" size={15} />
+					<label class="btn btn-tonal">
+						<Icon name="camera" size={18} />
 						{pickedFile ? 'Retake' : 'Take photo'}
 						<input
 							bind:this={cameraInputEl}
@@ -205,8 +206,8 @@
 						/>
 					</label>
 
-					<label class="btn btn-secondary">
-						<Icon name="receipt" size={15} />
+					<label class="btn btn-outlined">
+						<Icon name="file" size={18} />
 						Choose file
 						<input
 							type="file"
@@ -221,47 +222,47 @@
 				{#if previewUrl && canCrop}
 					<ImageCropper src={previewUrl} oncrop={(rect) => (pixels = rect)} />
 				{:else if pickedFile}
-					<p class="hint">{pickedFile.name} - will upload as-is</p>
+					<p class="hint md-body-small">{pickedFile.name} - will upload as-is</p>
 				{/if}
 
 				<!-- Same field markup as the edit page, so the two forms cannot drift. -->
-				<div class="fld">
-					<label for="sheet-amount">Amount <span class="opt">leave blank if unreadable</span></label
-					>
+				<div class="tf">
+					<label for="sheet-amount">Amount</label>
+					<span class="tf-prefix" aria-hidden="true">$</span>
 					<input
 						id="sheet-amount"
-						class="input amount"
+						class="tf-input amount"
 						name="amount"
 						type="text"
 						inputmode="decimal"
-						placeholder="$0.00"
+						placeholder="0.00"
+						aria-describedby="sheet-amount-help"
 						bind:value={amountText}
 					/>
+					<span class="tf-support" id="sheet-amount-help">Leave blank if unreadable</span>
 				</div>
-				<div class="fld">
+				<div class="tf">
 					<label for="sheet-date">Date of service</label>
 					<input
 						id="sheet-date"
-						class="input"
+						class="tf-input"
 						name="serviceDate"
 						type="date"
 						value={today}
 						required
 					/>
 				</div>
-				<div class="fld">
+				<div class="tf">
 					<label for="sheet-provider">Provider</label>
 					<ProviderInput id="sheet-provider" bind:value={providerText} suggestions={providers} />
 				</div>
 
-				{#if addError}<p class="error">{addError}</p>{/if}
+				{#if addError}<p class="error md-body-medium" role="alert">{addError}</p>{/if}
 			</div>
 
 			<footer class="sheet-foot">
-				<button type="button" class="btn btn-secondary cancel-desktop" onclick={close}>
-					Cancel
-				</button>
-				<button type="submit" class="btn btn-primary submit">
+				<button type="button" class="btn btn-text cancel-desktop" onclick={close}>Cancel</button>
+				<button type="submit" class="btn btn-filled submit">
 					{typedAmount == null ? 'Save receipt' : `Add ${money(typedAmount)} to my total`}
 				</button>
 			</footer>
@@ -275,146 +276,125 @@
 		overflow-y: auto;
 	}
 	.sheet-head {
-		display: none;
+		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		padding-bottom: var(--space-4);
+		margin-bottom: 24px;
+	}
+	.sheet-close {
+		display: none;
 	}
 	.sheet-title {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 15px;
-	}
-	.sheet-spacer {
-		width: 76px;
+		font: 400 24px/32px var(--md-font);
 	}
 	.sheet-body {
 		display: flex;
 		flex-direction: column;
-		gap: 18px;
+		gap: 24px;
 	}
 	.sheet-foot {
 		display: flex;
 		justify-content: flex-end;
-		gap: var(--space-2);
-		margin-top: var(--space-6);
+		gap: 8px;
+		margin-top: 24px;
 	}
 	.error {
-		color: var(--color-danger);
-		margin: 0;
+		color: var(--md-error);
 	}
 	.file-row {
 		display: flex;
-		gap: var(--space-3);
+		gap: 8px;
 	}
 	.hint {
-		font-size: 12px;
-		color: color-mix(in srgb, var(--color-text) 55%, transparent);
-		margin: 0;
+		color: var(--md-on-surface-variant);
 	}
 
 	/* — the payoff frame — */
 	.done {
-		text-align: center;
-		padding: 34px 6px 6px;
-	}
-	.done-mark {
-		width: 66px;
-		height: 66px;
-		margin: 0 auto;
-		border-radius: 99px;
-		border: 1.5px solid var(--color-accent);
-		color: var(--color-accent);
-		display: grid;
-		place-items: center;
-		box-shadow: 0 0 40px color-mix(in srgb, var(--color-accent) 35%, transparent);
-	}
-	.done-title {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 20px;
-		margin-top: 22px;
-		letter-spacing: -0.01em;
-	}
-	.done-sub {
-		font-size: 13px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
-		margin-top: 8px;
-	}
-	.done-total {
-		margin-top: 36px;
-		padding-top: 26px;
-		background: linear-gradient(
-				to right,
-				transparent,
-				var(--color-divider) 20%,
-				var(--color-divider) 80%,
-				transparent
-			)
-			no-repeat top / 100% 1px;
-	}
-	.done-figure {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 42px;
-		line-height: 1;
-		letter-spacing: -0.03em;
-		margin-top: 12px;
-		font-variant-numeric: tabular-nums;
-	}
-	.done-was {
-		font-size: 12.5px;
-		color: var(--color-accent-300);
-		margin-top: 9px;
-	}
-	.done-actions {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		margin-top: 40px;
+		align-items: center;
+		text-align: center;
+		padding-top: 24px;
 	}
-	.tall {
-		min-height: 48px;
-		font-size: 15px;
+	.done-mark {
+		display: grid;
+		place-items: center;
+		width: 72px;
+		height: 72px;
+		border-radius: 50%;
+		background: var(--md-surface-container-high);
+		color: var(--md-on-surface);
+	}
+	.done-title {
+		margin-top: 16px;
+	}
+	.done-sub {
+		margin-top: 4px;
+		color: var(--md-on-surface-variant);
+	}
+	.done-total {
+		align-self: stretch;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 32px;
+		padding: 20px;
+		border-radius: var(--md-shape-xl);
+		background: var(--md-surface-container-high);
+		color: var(--md-on-surface);
+	}
+	.done-figure {
+		font-variant-numeric: tabular-nums;
+	}
+	.done-actions {
+		align-self: stretch;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 32px;
 	}
 
 	@media (max-width: 700px) {
-		/* [open] matters: without it `display: flex` overrides the UA's
-		   `dialog:not([open]) { display: none }` and the closed sheet renders
-		   inline in the page, below the content. */
+		/* A full-screen dialog on phones. [open] matters: without it
+		   `display: flex` overrides the UA's `dialog:not([open]) { display: none }`
+		   and the closed sheet renders inline in the page, below the content. */
 		dialog.sheet[open] {
 			width: 100vw;
+			min-width: 0;
 			max-width: none;
 			height: 100dvh;
 			max-height: none;
 			margin: 0;
 			border-radius: 0;
-			padding: calc(8px + env(safe-area-inset-top)) var(--gutter)
-				calc(20px + env(safe-area-inset-bottom));
+			padding: env(safe-area-inset-top) var(--gutter) calc(16px + env(safe-area-inset-bottom));
+			background: var(--md-surface);
+			box-shadow: none;
 			display: flex;
 			flex-direction: column;
 		}
-		.sheet-head {
-			display: flex;
-			margin: 0 -12px;
+		dialog.sheet :global(.tf) {
+			--tf-bg: var(--md-surface);
 		}
-		.sheet-cancel {
-			width: 76px;
-			justify-content: flex-start;
-			padding-inline: 12px;
+		.sheet-head {
+			height: 64px;
+			gap: 4px;
+			margin: 0 0 8px -12px;
+		}
+		.sheet-close {
+			display: inline-grid;
+			color: var(--md-on-surface);
 		}
 		.sheet-title {
-			font-size: 16px;
+			font: 400 22px/28px var(--md-font);
 		}
 		/* Two equal, thumb-sized halves. */
 		.file-row {
 			display: grid;
 			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: 10px;
 		}
 		.file-row .btn {
-			min-height: 48px;
-			font-size: 15px;
+			height: 56px;
+			font-size: 16px;
 		}
 		.cancel-desktop {
 			display: none;
@@ -428,14 +408,16 @@
 		.sheet-body {
 			flex: 1;
 			overflow-y: auto;
+			/* Room for the first field's label, which sits above its outline. */
+			padding-top: 8px;
 		}
 		.sheet-foot {
-			margin-top: var(--space-4);
+			margin-top: 16px;
 		}
 		.submit {
 			width: 100%;
-			min-height: 48px;
-			font-size: 15px;
+			height: 56px;
+			font-size: 16px;
 		}
 	}
 </style>

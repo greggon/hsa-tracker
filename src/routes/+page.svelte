@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import type { CaptureRequest } from '$lib/components/CaptureSheet.svelte';
 	import AppChrome from '$lib/components/AppChrome.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import ReceiptList from '$lib/components/ReceiptList.svelte';
 	import VaultChart from '$lib/components/VaultChart.svelte';
 	import { money, pretty, prettyShort, splitMoney } from '$lib/format';
@@ -33,65 +34,67 @@
 	const hero = $derived(splitMoney(data.stats.totalCents));
 </script>
 
+<svelte:head><title>Vault · HSA Saver</title></svelte:head>
+
 <div class="app">
 	<AppChrome current="vault" bind:search={query} bind:capture providers={data.providers} />
 
 	<div class="main" class:has-rail={data.stats.incomplete.length > 0}>
-		<section class="hero">
-			<h1 class="kick accent">Total eligible · unreimbursed</h1>
-			<div class="total">
-				<span class="figure">{hero.whole}<span class="frac">{hero.frac}</span></span>
+		<div class="primary">
+			<section class="hero" aria-labelledby="hero-label">
+				<h1 class="md-title-small" id="hero-label">Total eligible · unreimbursed</h1>
+				<p class="figure">{hero.whole}<span class="frac">{hero.frac}</span></p>
 				{#if data.stats.currentYearCents > 0}
-					<span class="tag tag-accent delta">+{money(data.stats.currentYearCents)} this year</span>
+					<div>
+						<span class="chip assist">
+							<Icon name="trendingUp" size={18} />
+							+{money(data.stats.currentYearCents)} this year
+						</span>
+					</div>
 				{/if}
-			</div>
+				<p class="meta md-body-medium">
+					{data.stats.receiptCount} receipt{data.stats.receiptCount === 1 ? '' : 's'}
+					{#if data.stats.oldestServiceDate}
+						· oldest {pretty(data.stats.oldestServiceDate)}
+					{/if}
+					{#if data.stats.documentedCents > 0}
+						· {money(data.stats.documentedCents)} fully documented
+					{/if}
+				</p>
+			</section>
 
-			<div class="meta">
-				<span>{data.stats.receiptCount} receipt{data.stats.receiptCount === 1 ? '' : 's'}</span>
-				{#if data.stats.oldestServiceDate}
-					<span class="sep">·</span>
-					<span>oldest {pretty(data.stats.oldestServiceDate)}</span>
-				{/if}
-				{#if data.stats.documentedCents > 0}
-					<span class="sep">·</span>
-					<span class="documented">{money(data.stats.documentedCents)} fully documented</span>
-				{/if}
-				{#if data.stats.incomplete.length > 0}
-					<span class="sep">·</span>
-					<a href="#needs-a-field">
-						{data.stats.incomplete.length}
-						need{data.stats.incomplete.length === 1 ? 's' : ''} a field
-					</a>
-				{/if}
-			</div>
-
-			<VaultChart
-				days={data.stats.days}
-				chart={data.stats.chart}
-				totalCents={data.stats.totalCents}
-			/>
-		</section>
+			<section class="card chart-card">
+				<VaultChart
+					days={data.stats.days}
+					chart={data.stats.chart}
+					totalCents={data.stats.totalCents}
+				/>
+			</section>
+		</div>
 
 		{#if data.stats.incomplete.length > 0}
-			<aside class="rail" id="needs-a-field">
-				<h2 class="kick">Needs a field · {data.stats.incomplete.length}</h2>
+			<aside class="rail" id="needs-a-field" aria-labelledby="needs-heading">
+				<div class="section-head">
+					<h2 class="md-title-medium" id="needs-heading">Needs a field</h2>
+					<span class="md-label-large on-surface-variant">{data.stats.incomplete.length}</span>
+				</div>
 				<ul class="needs">
 					{#each data.stats.incomplete as r (r.id)}
 						<li>
-							<a
-								class="card elev-sm need"
-								href={resolve('/receipts/[id=integer]', { id: String(r.id) })}
-							>
-								<span class="need-what">{REASON_LABEL[r.reasons[0]]}</span>
-								<span class="need-who">
-									{r.provider ?? 'No provider'} · {prettyShort(r.serviceDate)}
+							<a class="need" href={resolve('/receipts/[id=integer]', { id: String(r.id) })}>
+								<Icon name="warning" size={20} />
+								<span class="need-text">
+									<span class="md-title-small">{REASON_LABEL[r.reasons[0]]}</span>
+									<span class="md-body-medium need-who">
+										{r.provider ?? 'No provider'} · {prettyShort(r.serviceDate)}
+									</span>
 								</span>
 							</a>
 						</li>
 					{/each}
 				</ul>
 				{#if data.stats.undocumentedCents > 0}
-					<p class="rail-note">
+					<p class="rail-note md-body-small">
 						{money(data.stats.undocumentedCents)} of your total isn't fully documented yet.
 					</p>
 				{/if}
@@ -99,25 +102,28 @@
 		{/if}
 	</div>
 
-	<section class="filed-section">
-		<div class="filed-head">
-			<h2 class="kick">{normalised === '' ? 'Recently filed' : 'Matching receipts'}</h2>
+	<section class="filed-section" aria-labelledby="filed-heading">
+		<div class="section-head">
+			<h2 class="md-title-medium" id="filed-heading">
+				{normalised === '' ? 'Recently filed' : 'Matching receipts'}
+			</h2>
 			{#if normalised === ''}
-				<a class="filed-count" href={resolve('/receipts')}>
-					All {data.expenses.length} receipt{data.expenses.length === 1 ? '' : 's'} →
-				</a>
+				<a class="btn btn-text" href={resolve('/receipts')}>All {data.expenses.length}</a>
 			{:else}
-				<span class="filed-count">{matches.length} of {data.expenses.length}</span>
+				<span class="md-label-large on-surface-variant">
+					{matches.length} of {data.expenses.length}
+				</span>
 			{/if}
 		</div>
 
 		{#if data.expenses.length === 0}
-			<p class="empty">
-				No receipts yet.
-				<button type="button" class="btn btn-ghost" onclick={() => (capture = 'form')}>
-					File your first one.
+			<div class="empty">
+				<p class="md-body-medium on-surface-variant">No receipts yet.</p>
+				<button type="button" class="btn btn-tonal" onclick={() => (capture = 'form')}>
+					<Icon name="add" size={18} />
+					File your first one
 				</button>
-			</p>
+			</div>
 		{:else}
 			<ReceiptList rows={visible} empty="Nothing matches “{query}”." />
 		{/if}
@@ -130,83 +136,67 @@
 		margin: 0 auto;
 	}
 
-	/* `.kick` lives in app.css; used on headings here, so undo their defaults. */
-	h1.kick,
-	h2.kick {
-		margin: 0;
-		font-weight: 400;
-	}
-	.kick.accent {
-		color: var(--color-accent);
-	}
-
 	/* — main split — */
 	.main {
 		display: grid;
 		/* The rail is only rendered when something needs a field; without it the
-		   hero takes the full width rather than leaving a reserved gutter. */
+		   cards take the full width rather than leaving a reserved gutter. */
 		grid-template-columns: minmax(0, 1fr);
+		gap: 24px;
+		padding: 8px var(--gutter) 0;
 	}
 	.main.has-rail {
-		grid-template-columns: minmax(0, 1fr) 296px;
+		grid-template-columns: minmax(0, 1fr) 320px;
+	}
+	.primary {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 	.hero {
-		min-width: 0;
-		padding: 32px var(--gutter) 24px;
-		/* --color-accent-800 is the artboard's rgba(66,58,106) bloom. */
-		background: radial-gradient(
-			115% 150% at 3% 0%,
-			color-mix(in srgb, var(--color-accent-800) 50%, transparent),
-			transparent 60%
-		);
-	}
-	.total {
 		display: flex;
-		align-items: flex-end;
-		gap: 14px;
-		margin-top: 12px;
-		flex-wrap: wrap;
+		flex-direction: column;
+		gap: 12px;
+		padding: 24px;
+		border-radius: var(--md-shape-xl);
+		background: var(--md-surface-container-high);
+		color: var(--md-on-surface);
 	}
 	.figure {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 64px;
-		line-height: 1;
-		letter-spacing: -0.035em;
+		font: 400 57px/64px var(--md-font);
+		letter-spacing: -0.25px;
 		font-variant-numeric: tabular-nums;
 	}
 	.frac {
-		font-size: 34px;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
-	}
-	.delta {
-		margin-bottom: 11px;
+		font-size: 32px;
+		opacity: 0.7;
 	}
 	.meta {
-		margin-top: 15px;
+		color: var(--md-on-surface-variant);
+	}
+	.hero .chip :global(svg) {
+		color: var(--md-primary);
+	}
+	/* A flat tonal container: no outline, no shadow. The surface step matches
+	   the ring the chart draws around its hover dot. */
+	.chart-card {
+		background: var(--md-surface-container-low);
+	}
+
+	.section-head {
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-3);
 		align-items: center;
-		font-size: 12.5px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
-	}
-	.meta .sep {
-		opacity: 0.4;
-	}
-	/* Paragraph-size accent text uses a deep ramp step, per the system's
-	   contrast note — the accent itself is tuned for chrome, not body copy. */
-	.documented {
-		color: var(--color-accent-300);
+		justify-content: space-between;
+		gap: 8px;
+		min-height: 48px;
 	}
 
 	/* — rail — */
 	.rail {
-		border-left: 1px solid var(--color-rule);
-		padding: 32px 24px;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: 8px;
 	}
 	.needs {
 		list-style: none;
@@ -214,107 +204,94 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-3);
+		gap: 8px;
 	}
 	.need {
-		width: 100%;
-		padding: 10px 12px;
-		gap: 4px;
-		text-align: left;
-		color: inherit;
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 12px 16px;
+		border-radius: var(--md-shape-md);
+		background: var(--md-primary-container);
+		color: var(--md-on-primary-container);
 		text-decoration: none;
 	}
 	.need:hover {
-		background: color-mix(in srgb, var(--color-text) 7%, transparent);
+		box-shadow: var(--md-state-hover);
 	}
-	.need-what {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 13px;
+	.need :global(svg) {
+		margin-top: 2px;
+	}
+	.need-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 	}
 	.need-who {
-		font-size: 12.5px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+		opacity: 0.8;
 	}
 	.rail-note {
-		margin: 0;
-		font-size: 12.5px;
-		line-height: 1.5;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		color: var(--md-on-surface-variant);
 	}
 
 	/* — recently filed — */
 	.filed-section {
-		padding: 6px var(--gutter) 26px;
+		margin-top: 24px;
+		padding: 0 var(--gutter);
 	}
-	.filed-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin: 12px 0 4px;
-	}
-	.filed-count {
-		font-size: 12.5px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+	.filed-section .section-head {
+		margin-right: -12px;
 	}
 	.empty {
-		color: color-mix(in srgb, var(--color-text) 55%, transparent);
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 16px 0;
 	}
 
 	@media (max-width: 900px) {
-		.main {
+		.main.has-rail {
 			grid-template-columns: minmax(0, 1fr);
-		}
-		.rail {
-			border-left: none;
-			border-top: 1px solid var(--color-rule);
 		}
 	}
 
-	/* Phone: tab bar replaces the nav links, rows replace the table. */
 	@media (max-width: 700px) {
 		.hero {
-			padding: 26px var(--gutter) 20px;
+			padding: 20px;
+		}
+		.figure {
+			font-size: 45px;
+			line-height: 52px;
+			letter-spacing: 0;
+		}
+		.frac {
+			font-size: 28px;
 		}
 		/* The rail becomes a sideways strip, so a long list of incomplete
 		   receipts does not push "Recently filed" off the screen. */
 		.rail {
-			padding: 22px 0 22px var(--gutter);
+			margin-inline: calc(-1 * var(--gutter));
+		}
+		.rail .section-head,
+		.rail-note {
+			padding-inline: var(--gutter);
 		}
 		.needs {
 			flex-direction: row;
 			overflow-x: auto;
-			padding-right: var(--gutter);
+			padding-inline: var(--gutter);
 			scroll-snap-type: x proximity;
+			scroll-padding-inline: var(--gutter);
+			scrollbar-width: none;
 		}
 		.needs li {
 			flex: none;
-			width: 210px;
+			width: 240px;
 			scroll-snap-align: start;
 		}
 		.need {
-			min-height: 56px;
-			justify-content: center;
-		}
-		.need-what {
-			font-size: 14px;
-		}
-		.rail-note {
-			padding-right: var(--gutter);
-		}
-		.filed-section {
-			padding: 6px var(--gutter) 20px;
-		}
-		.filed-count {
-			display: flex;
-			align-items: center;
-			min-height: 44px;
-		}
-		.figure {
-			font-size: 48px;
-		}
-		.frac {
-			font-size: 27px;
+			height: 100%;
 		}
 	}
 </style>

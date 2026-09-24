@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import AppChrome from '$lib/components/AppChrome.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import ReceiptList from '$lib/components/ReceiptList.svelte';
 	import { money } from '$lib/format';
 	import { searchReceipts } from '$lib/search';
@@ -44,43 +45,52 @@
 	<AppChrome current="receipts" bind:search={query} providers={data.providers} />
 
 	<section class="head">
-		<h1>{data.year ?? 'All'} receipts</h1>
-		<p class="summary">
-			{matches.length} receipt{matches.length === 1 ? '' : 's'}
-			<span class="sep">·</span>
+		<h1 class="md-headline-small">{data.year ?? 'All'} receipts</h1>
+		<p class="summary md-body-medium">
+			{matches.length} receipt{matches.length === 1 ? '' : 's'} ·
 			<span class="outstanding">{money(outstandingCents)} unreimbursed</span>
-			{#if onlyNeeding}
-				<span class="sep">·</span>
-				<a href="{resolve('/receipts')}{listQuery({ year: data.year })}">Show all</a>
-			{:else if needingAField > 0}
-				<span class="sep">·</span>
-				<a href="{resolve('/receipts')}{listQuery({ year: data.year, needs: true })}">
-					{needingAField} need{needingAField === 1 ? 's' : ''} a field
+		</p>
+	</section>
+
+	{#if needingAField > 0 || onlyNeeding || data.years.length > 1}
+		<nav class="filters" aria-label="Filters">
+			{#if needingAField > 0 || onlyNeeding}
+				<!-- A toggle: selected, it narrows the list; tapped again, it clears. -->
+				<a
+					class="chip"
+					class:selected={onlyNeeding}
+					aria-current={onlyNeeding ? 'page' : undefined}
+					href="{resolve('/receipts')}{listQuery({ year: data.year, needs: !onlyNeeding })}"
+				>
+					<Icon name={onlyNeeding ? 'check' : 'warning'} size={18} />
+					Needs a field · {needingAField}
 				</a>
 			{/if}
-		</p>
-
-		{#if data.years.length > 1}
-			<nav class="years" aria-label="Filter by year">
+			{#if data.years.length > 1}
+				<span class="filter-sep" aria-hidden="true"></span>
 				<a
-					class="year"
-					class:current={data.year === null}
+					class="chip"
+					class:selected={data.year === null}
 					aria-current={data.year === null ? 'page' : undefined}
-					href="{resolve('/receipts')}{listQuery({ needs: onlyNeeding })}">All</a
+					href="{resolve('/receipts')}{listQuery({ needs: onlyNeeding })}"
 				>
+					{#if data.year === null}<Icon name="check" size={18} />{/if}
+					All
+				</a>
 				{#each data.years as year (year)}
 					<a
-						class="year"
-						class:current={data.year === year}
+						class="chip"
+						class:selected={data.year === year}
 						aria-current={data.year === year ? 'page' : undefined}
 						href="{resolve('/receipts')}{listQuery({ year, needs: onlyNeeding })}"
 					>
+						{#if data.year === year}<Icon name="check" size={18} />{/if}
 						{year}
 					</a>
 				{/each}
-			</nav>
-		{/if}
-	</section>
+			{/if}
+		</nav>
+	{/if}
 
 	<section class="list">
 		<ReceiptList
@@ -101,79 +111,44 @@
 		max-width: 1180px;
 		margin: 0 auto;
 	}
-
 	.head {
-		padding: 28px var(--gutter) 0;
-	}
-	h1 {
-		font-size: 25px;
-		margin: 0;
+		padding: 16px var(--gutter) 0;
 	}
 	.summary {
-		margin: 10px 0 0;
-		font-size: 12.5px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+		margin-top: 4px;
+		color: var(--md-on-surface-variant);
 	}
-	.summary .sep {
-		opacity: 0.4;
-	}
-	/* Paragraph-size accent text takes a deep ramp step, per the system's
-	   contrast note — the accent itself is tuned for chrome, not body copy. */
 	.outstanding {
-		color: var(--color-accent-300);
+		color: var(--md-on-surface);
+		font-weight: 500;
 		font-variant-numeric: tabular-nums;
 	}
 
-	.years {
+	/* One row of chips that scrolls sideways rather than wrapping, so it does
+	   not gain a line every January. It bleeds to the screen edges. */
+	.filters {
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-		margin-top: 18px;
+		align-items: center;
+		gap: 8px;
+		overflow-x: auto;
+		/* Room for the chips' 48px touch targets above and below. */
+		padding: 16px var(--gutter) 8px;
+		scrollbar-width: none;
 	}
-	.year {
-		padding: 5px 12px;
-		border-radius: var(--radius-md);
-		border: 1px solid var(--color-divider);
-		font-size: 12.5px;
+	.filter-sep {
+		flex: none;
+		width: 1px;
+		height: 32px;
+		background: var(--md-outline-variant);
+	}
+	.filter-sep:first-child {
+		display: none;
+	}
+	.chip {
 		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--color-text) 70%, transparent);
-		text-decoration: none;
-	}
-	.year:hover {
-		background: color-mix(in srgb, var(--color-text) 7%, transparent);
-	}
-	.year.current {
-		color: var(--color-accent);
-		border-color: var(--color-accent);
 	}
 
 	.list {
-		padding: 18px var(--gutter) 26px;
-	}
-
-	@media (max-width: 700px) {
-		.head {
-			padding: 22px var(--gutter) 0;
-		}
-		/* One row that scrolls sideways, rather than a block that gains a line
-		   every January. It bleeds to the screen edges so it reads as a strip. */
-		.years {
-			flex-wrap: nowrap;
-			overflow-x: auto;
-			margin-inline: calc(-1 * var(--gutter));
-			padding-inline: var(--gutter);
-			scrollbar-width: none;
-		}
-		.year {
-			flex: none;
-			display: flex;
-			align-items: center;
-			min-height: 44px;
-			padding: 0 16px;
-			font-size: 14px;
-		}
-		.list {
-			padding: 12px var(--gutter) 20px;
-		}
+		padding: 8px var(--gutter) 24px;
 	}
 </style>

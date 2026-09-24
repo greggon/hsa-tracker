@@ -204,7 +204,7 @@
 			{#if crop}
 				<span class="dims">{crop.width} × {crop.height}</span>
 			{/if}
-			<button type="button" class="btn btn-ghost reset" onclick={reset}>Reset</button>
+			<button type="button" class="btn btn-text reset" onclick={reset}>Reset</button>
 		</div>
 	</div>
 </div>
@@ -213,9 +213,11 @@
 	.frame {
 		display: flex;
 		justify-content: center;
-		background: var(--color-neutral-900);
-		border-radius: var(--radius-sm);
-		padding: var(--space-2);
+		/* Photo editing stays on a dark ground in a light theme, so the
+		   picture's own contrast is what you judge the crop by. */
+		background: var(--md-inverse-surface);
+		border-radius: var(--md-shape-md);
+		padding: 8px;
 	}
 	/* Shrink-wraps the image, so the overlay's percentages land on the picture
 	   itself rather than on a letterboxed container. */
@@ -236,20 +238,20 @@
 	/* Bounded to the image, so the sheet around it stays at full brightness. */
 	.shade {
 		position: absolute;
-		background: color-mix(in srgb, var(--color-neutral-900) 72%, transparent);
+		background: color-mix(in srgb, var(--md-inverse-surface) 72%, transparent);
 		pointer-events: none;
 	}
 	.box {
 		position: absolute;
-		outline: 1px solid color-mix(in srgb, var(--color-text) 70%, transparent);
+		outline: 1px solid rgb(255 255 255 / 0.7);
 		cursor: move;
 		touch-action: none;
 	}
 	.box:focus-visible {
-		outline: 2px solid var(--color-accent);
+		outline: 2px solid var(--md-inverse-primary);
 	}
 	.stage.busy .box {
-		outline-color: var(--color-accent);
+		outline-color: var(--md-inverse-primary);
 	}
 
 	/* Rule-of-thirds guides, drawn only while they are useful. */
@@ -262,32 +264,28 @@
 			linear-gradient(
 					to right,
 					transparent calc(33.333% - 0.5px),
-					color-mix(in srgb, var(--color-text) 28%, transparent) calc(33.333% - 0.5px)
-						calc(33.333% + 0.5px),
+					rgb(255 255 255 / 0.28) calc(33.333% - 0.5px) calc(33.333% + 0.5px),
 					transparent calc(33.333% + 0.5px)
 				)
 				no-repeat,
 			linear-gradient(
 					to right,
 					transparent calc(66.666% - 0.5px),
-					color-mix(in srgb, var(--color-text) 28%, transparent) calc(66.666% - 0.5px)
-						calc(66.666% + 0.5px),
+					rgb(255 255 255 / 0.28) calc(66.666% - 0.5px) calc(66.666% + 0.5px),
 					transparent calc(66.666% + 0.5px)
 				)
 				no-repeat,
 			linear-gradient(
 					to bottom,
 					transparent calc(33.333% - 0.5px),
-					color-mix(in srgb, var(--color-text) 28%, transparent) calc(33.333% - 0.5px)
-						calc(33.333% + 0.5px),
+					rgb(255 255 255 / 0.28) calc(33.333% - 0.5px) calc(33.333% + 0.5px),
 					transparent calc(33.333% + 0.5px)
 				)
 				no-repeat,
 			linear-gradient(
 					to bottom,
 					transparent calc(66.666% - 0.5px),
-					color-mix(in srgb, var(--color-text) 28%, transparent) calc(66.666% - 0.5px)
-						calc(66.666% + 0.5px),
+					rgb(255 255 255 / 0.28) calc(66.666% - 0.5px) calc(66.666% + 0.5px),
 					transparent calc(66.666% + 0.5px)
 				)
 				no-repeat;
@@ -315,7 +313,7 @@
 	.sw {
 		width: 20px;
 		height: 20px;
-		border: 3px solid var(--color-accent);
+		border: 3px solid var(--md-inverse-primary);
 	}
 	.nw {
 		top: -1px;
@@ -351,7 +349,7 @@
 		width: 34px;
 		height: 3px;
 		margin-left: -17px;
-		background: var(--color-accent);
+		background: var(--md-inverse-primary);
 		cursor: ns-resize;
 	}
 	.n {
@@ -366,7 +364,7 @@
 		width: 3px;
 		height: 34px;
 		margin-top: -17px;
-		background: var(--color-accent);
+		background: var(--md-inverse-primary);
 		cursor: ew-resize;
 	}
 	.w {
@@ -381,56 +379,43 @@
 		align-items: center;
 		justify-content: space-between;
 		flex-wrap: wrap;
-		gap: var(--space-3);
-		margin-top: var(--space-3);
+		gap: 8px;
+		margin-top: 12px;
 	}
 	.presets {
 		display: inline-flex;
 		overflow: hidden;
-		border: 1px solid var(--color-divider);
-		border-radius: var(--radius-md);
+		border: 1px solid var(--md-outline);
+		border-radius: var(--md-shape-full);
 	}
 	.preset {
-		padding: 6px 11px;
-		font: inherit;
-		font-size: 12.5px;
+		height: 40px;
+		padding: 0 14px;
+		font: 500 14px/20px var(--md-font);
+		letter-spacing: 0.1px;
 		background: none;
 		border: none;
-		color: var(--color-text);
+		color: var(--md-on-surface);
 		cursor: pointer;
 	}
 	.preset + .preset {
-		border-left: 1px solid var(--color-divider);
+		border-left: 1px solid var(--md-outline);
 	}
 	.preset:hover {
-		background: color-mix(in srgb, var(--color-text) 7%, transparent);
+		box-shadow: var(--md-state-hover);
 	}
 	.preset.current {
-		color: var(--color-accent);
-		box-shadow: inset 0 0 0 1px var(--color-accent);
+		background: var(--md-secondary-container);
+		color: var(--md-on-secondary-container);
 	}
 	.readout {
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
+		gap: 8px;
 	}
 	.dims {
-		font-size: 11.5px;
+		font-size: 12px;
 		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
-	}
-	.reset {
-		font-size: 12.5px;
-	}
-
-	@media (max-width: 700px) {
-		.preset {
-			min-height: 44px;
-			padding-inline: 14px;
-			font-size: 14px;
-		}
-		.dims {
-			font-size: 12px;
-		}
+		color: var(--md-on-surface-variant);
 	}
 </style>

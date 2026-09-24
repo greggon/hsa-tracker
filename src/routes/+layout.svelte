@@ -1,5 +1,5 @@
 <script lang="ts">
-	import '$lib/styles/nocturne.css';
+	import '$lib/styles/material.css';
 	import '$lib/styles/app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import Toaster from '$lib/components/Toaster.svelte';
@@ -30,26 +30,17 @@
 
 <style>
 	footer {
-		/* Nocturne rules fade to transparent over 48px at each end rather
-		   than stopping cleanly. */
-		margin-top: var(--space-8);
+		margin-top: 32px;
 		/* Clears whatever bar is fixed to the bottom of a phone screen; the
-		   pages themselves no longer pad for it, so the footer cannot end up
+		   pages themselves do not pad for it, so the footer cannot end up
 		   underneath it. */
-		padding: var(--space-4) var(--gutter)
-			calc(var(--space-4) + var(--bottom-bar) + env(safe-area-inset-bottom));
-		background: linear-gradient(
-				to right,
-				transparent,
-				var(--color-divider) 48px,
-				var(--color-divider) calc(100% - 48px),
-				transparent
-			)
-			no-repeat top / 100% 1px;
+		padding: 12px var(--gutter) calc(12px + var(--bottom-bar) + env(safe-area-inset-bottom));
+		border-top: 1px solid var(--md-outline-variant);
 	}
 	small {
-		font-size: 11px;
+		font: 400 12px/16px var(--md-font);
+		letter-spacing: 0.4px;
 		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		color: var(--md-on-surface-variant);
 	}
 </style>

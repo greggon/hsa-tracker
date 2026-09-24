@@ -23,9 +23,9 @@
 			role={toast.tone === 'error' ? 'alert' : 'status'}
 			transition:fly={{ y: 10, duration }}
 		>
-			<span class="mark" aria-hidden="true">
-				<Icon name={toast.tone === 'error' ? 'cross' : 'check'} size={13} width={2.2} />
-			</span>
+			{#if toast.tone === 'error'}
+				<span class="mark" aria-hidden="true"><Icon name="errorCircle" size={20} /></span>
+			{/if}
 			<span class="message">{toast.message}</span>
 			<button
 				type="button"
@@ -33,107 +33,81 @@
 				onclick={() => toasts.dismiss(toast.id)}
 				aria-label="Dismiss"
 			>
-				<Icon name="cross" size={12} width={2} />
+				<Icon name="close" size={20} />
 			</button>
 		</div>
 	{/each}
 </div>
 
 <style>
+	/* Material snackbars: inverse surface, one line where it fits. */
 	.toaster {
 		position: fixed;
 		z-index: 60;
 		left: 50%;
 		transform: translateX(-50%);
-		/* Clears whatever bar is fixed to the bottom of a phone screen: the tab
-		   bar, the detail page's save bar, or nothing. */
+		/* Clears whatever is fixed to the bottom of a phone screen: the
+		   navigation bar, or the save bar. */
 		bottom: calc(var(--bottom-bar) + 12px + env(safe-area-inset-bottom));
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		width: min(24rem, calc(100vw - 2 * var(--gutter)));
+		width: min(560px, calc(100vw - 2 * var(--gutter)));
 		pointer-events: none;
 	}
-
 	.toast {
 		pointer-events: auto;
 		display: flex;
-		align-items: flex-start;
-		gap: 10px;
-		padding: 11px 11px 11px 13px;
-		border-radius: var(--radius-md);
-		background: var(--color-surface);
-		border: 1px solid var(--color-divider);
-		box-shadow: var(--shadow-lg);
-		font-size: 13.5px;
-		line-height: 1.45;
+		align-items: center;
+		gap: 12px;
+		min-height: 48px;
+		padding: 4px 4px 4px 16px;
+		border-radius: var(--md-shape-xs);
+		background: var(--md-inverse-surface);
+		color: var(--md-inverse-on-surface);
+		box-shadow: var(--md-elev-3);
+		font: 400 14px/20px var(--md-font);
+		letter-spacing: 0.25px;
 	}
-
 	.mark {
 		flex: none;
-		display: grid;
-		place-items: center;
-		width: 19px;
-		height: 19px;
-		margin-top: 1px;
-		border-radius: 99px;
+		/* The dark scheme's error tone, legible on the inverse surface. */
+		color: #f2b8b5;
 	}
-	.success .mark {
-		color: var(--color-accent);
-		background: color-mix(in srgb, var(--color-accent) 20%, transparent);
-	}
-	.error .mark {
-		color: var(--color-danger);
-		background: color-mix(in srgb, var(--color-danger) 20%, transparent);
-	}
-
 	.message {
 		flex: 1;
 		min-width: 0;
+		padding: 10px 0;
 		/* A long provider name or a server message must wrap, never clip. */
 		overflow-wrap: anywhere;
 	}
-
 	.close {
 		flex: none;
 		display: grid;
 		place-items: center;
-		width: 22px;
-		height: 22px;
+		width: 48px;
+		height: 48px;
 		padding: 0;
 		border: none;
-		border-radius: var(--radius-sm);
+		border-radius: 50%;
 		background: none;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		color: var(--md-inverse-on-surface);
 		cursor: pointer;
 	}
 	.close:hover {
-		background: color-mix(in srgb, var(--color-text) 9%, transparent);
-		color: var(--color-text);
-	}
-	/* A 44px touch target around the small visual mark, without growing the
-	   toast: the negative margins give the extra back. */
-	@media (max-width: 700px) {
-		.toast {
-			align-items: center;
-		}
-		.close {
-			width: 44px;
-			height: 44px;
-			margin: -11px -11px -11px 0;
-		}
+		box-shadow: var(--md-state-hover);
 	}
 	.close:focus-visible {
-		outline: 2px solid var(--color-accent);
-		outline-offset: 1px;
+		outline: 2px solid var(--md-inverse-primary);
+		outline-offset: -2px;
 	}
 
 	@media (min-width: 701px) {
 		.toaster {
-			left: auto;
-			right: var(--gutter);
+			left: var(--gutter);
 			transform: none;
-			bottom: 26px;
+			bottom: 24px;
+			width: min(560px, calc(100vw - 2 * var(--gutter)));
 		}
 	}
 </style>

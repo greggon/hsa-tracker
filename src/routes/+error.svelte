@@ -4,45 +4,40 @@
 
 	/** 404 is the ordinary case here — a stale link to a receipt that was deleted. */
 	const isMissing = $derived(page.status === 404);
+	const heading = $derived(isMissing ? 'No such receipt' : 'Something went wrong');
 </script>
 
-<svelte:head><title>{page.status} · HSA Saver</title></svelte:head>
+<svelte:head><title>{heading} · HSA Saver</title></svelte:head>
 
 <main>
 	<p class="code">{page.status}</p>
-	<h1>{isMissing ? 'No such receipt' : 'Something went wrong'}</h1>
-	<p class="detail">
+	<h1 class="md-headline-small">{heading}</h1>
+	<p class="detail md-body-medium">
 		{isMissing
 			? 'It may have been deleted, or the link may be wrong.'
 			: (page.error?.message ?? 'Try again in a moment.')}
 	</p>
-	<a class="btn btn-secondary" href={resolve('/')}>Back to my vault</a>
+	<a class="btn btn-filled" href={resolve('/')}>Back to my vault</a>
 </main>
 
 <style>
 	main {
 		max-width: 26rem;
 		margin: 0 auto;
-		padding: 18vh var(--gutter) var(--space-6);
+		padding: 18vh var(--gutter) 24px;
 		text-align: center;
 	}
 	.code {
-		margin: 0;
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 56px;
-		line-height: 1;
-		letter-spacing: -0.03em;
-		color: color-mix(in srgb, var(--color-text) 22%, transparent);
+		font: 400 57px/64px var(--md-font);
+		letter-spacing: -0.25px;
+		color: var(--md-primary);
 		font-variant-numeric: tabular-nums;
 	}
 	h1 {
-		font-size: 19px;
-		margin: var(--space-4) 0 0;
+		margin-top: 16px;
 	}
 	.detail {
-		font-size: 13.5px;
-		color: color-mix(in srgb, var(--color-text) 55%, transparent);
-		margin: var(--space-3) 0 var(--space-6);
+		margin: 8px 0 24px;
+		color: var(--md-on-surface-variant);
 	}
 </style>

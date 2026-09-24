@@ -6,6 +6,7 @@
 	 */
 	import { projectToViewBox, readChartAt, type ChartGeometry, type DayPoint } from '$lib/chart';
 	import { money, pretty } from '$lib/format';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		days: DayPoint[];
@@ -60,14 +61,17 @@
 </script>
 
 <div class="chart-head">
+	<h2 class="md-title-medium">Unreimbursed over time</h2>
 	{#if days.length > 0}
-		<span class="seg">
+		<span class="seg" role="radiogroup" aria-label="Chart mode">
 			<label class="seg-opt">
 				<input type="radio" name="chartMode" value="cumulative" bind:group={mode} />
+				<span class="seg-check"><Icon name="check" size={18} /></span>
 				Cumulative
 			</label>
 			<label class="seg-opt">
 				<input type="radio" name="chartMode" value="year" bind:group={mode} />
+				<span class="seg-check"><Icon name="check" size={18} /></span>
 				Per year
 			</label>
 		</span>
@@ -101,8 +105,8 @@
 		>
 			<defs>
 				<linearGradient id="hsaGrad" x1="0" y1="0" x2="0" y2="1">
-					<stop offset="0" stop-color="var(--color-accent)" stop-opacity=".32" />
-					<stop offset="1" stop-color="var(--color-accent)" stop-opacity="0" />
+					<stop offset="0" stop-color="var(--md-primary)" stop-opacity=".2" />
+					<stop offset="1" stop-color="var(--md-primary)" stop-opacity="0" />
 				</linearGradient>
 			</defs>
 			<path
@@ -155,11 +159,13 @@
 	.chart-head {
 		display: flex;
 		align-items: center;
-		justify-content: flex-end;
-		gap: var(--space-4);
+		justify-content: space-between;
+		gap: 16px;
 		flex-wrap: wrap;
-		min-height: 30px;
-		margin: 24px 0 12px;
+		margin-bottom: 16px;
+	}
+	.chart-head .seg {
+		width: 280px;
 	}
 	/* The readout overlay is HTML, not SVG: preserveAspectRatio="none" would
 	   stretch any text or circle drawn inside the viewBox. Percentages map
@@ -175,7 +181,7 @@
 		top: 0;
 		bottom: 0;
 		width: 1px;
-		background: color-mix(in srgb, var(--color-accent) 55%, transparent);
+		background: var(--md-outline);
 		pointer-events: none;
 	}
 	.dot {
@@ -184,8 +190,8 @@
 		height: 9px;
 		margin: -4.5px 0 0 -4.5px;
 		border-radius: 99px;
-		background: var(--color-accent);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 25%, transparent);
+		background: var(--md-primary);
+		box-shadow: 0 0 0 3px var(--md-surface-container-low);
 		pointer-events: none;
 	}
 	.readout {
@@ -196,9 +202,9 @@
 		flex-direction: column;
 		gap: 2px;
 		padding: 7px 10px;
-		border-radius: var(--radius-md);
-		background: var(--color-surface);
-		box-shadow: var(--shadow-md);
+		border-radius: var(--md-shape-md);
+		background: var(--md-inverse-surface);
+		color: var(--md-inverse-on-surface);
 		pointer-events: none;
 		white-space: nowrap;
 	}
@@ -208,18 +214,16 @@
 		transform: translateX(-100%) translateX(-10px);
 	}
 	.readout-date {
-		font-size: 11px;
-		color: color-mix(in srgb, var(--color-text) 55%, transparent);
+		font: 400 12px/16px var(--md-font);
+		opacity: 0.8;
 	}
 	.readout-total {
-		font-family: var(--font-heading);
-		font-weight: var(--font-heading-weight);
-		font-size: 15px;
+		font: 500 16px/20px var(--md-font);
 		font-variant-numeric: tabular-nums;
 	}
 	.readout-day {
-		font-size: 11px;
-		color: var(--color-accent-300);
+		font: 400 12px/16px var(--md-font);
+		color: var(--md-inverse-primary);
 		font-variant-numeric: tabular-nums;
 	}
 	.chart {
@@ -227,33 +231,36 @@
 		overflow: visible;
 	}
 	.grid {
-		stroke: color-mix(in srgb, var(--color-text) 7%, transparent);
+		stroke: var(--md-outline-variant);
+		stroke-dasharray: 4 4;
 		stroke-width: 1;
 		fill: none;
 	}
 	.line {
 		fill: none;
-		stroke: var(--color-accent);
-		stroke-width: 2.5;
+		stroke: var(--md-primary);
+		stroke-width: 3;
+		stroke-linecap: round;
 		stroke-linejoin: round;
 	}
 	.bars {
-		fill: color-mix(in srgb, var(--color-accent) 50%, transparent);
-		stroke: var(--color-accent);
+		fill: var(--md-primary);
+		stroke: none;
 		stroke-width: 1;
 	}
 	.axis {
 		display: flex;
 		justify-content: space-between;
-		margin-top: 9px;
-		font-size: 11px;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		margin-top: 8px;
+		font: 400 12px/16px var(--md-font);
+		letter-spacing: 0.4px;
+		color: var(--md-on-surface-variant);
 	}
 	/* Ticks carry their own position, so they are placed rather than distributed. */
 	.axis-timed {
 		display: block;
 		position: relative;
-		height: 13px;
+		height: 16px;
 	}
 	.axis-timed span {
 		position: absolute;
@@ -269,22 +276,13 @@
 	.chart-empty {
 		margin: 0;
 		padding: 52px 0;
-		font-size: 13px;
-		color: color-mix(in srgb, var(--color-text) 40%, transparent);
+		color: var(--md-on-surface-variant);
 	}
 
 	@media (max-width: 700px) {
-		/* The toggle spans the width, one thumb-sized half per mode. */
-		.chart-head {
-			justify-content: stretch;
-		}
-		.seg {
-			flex: 1;
-		}
-		.seg-opt {
-			flex: 1;
-			justify-content: center;
-			font-size: 14px;
+		/* The toggle spans the width, one half per mode. */
+		.chart-head .seg {
+			width: 100%;
 		}
 		.chart {
 			height: 110px;

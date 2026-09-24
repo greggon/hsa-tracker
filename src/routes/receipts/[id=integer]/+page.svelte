@@ -13,6 +13,19 @@
 	let confirmEl = $state<HTMLDialogElement | null>(null);
 	let saving = $state(false);
 
+	/** The top bar's overflow menu, which holds Delete. */
+	let menuOpen = $state(false);
+	let menuWrap = $state<HTMLElement | null>(null);
+
+	function closeMenuOnOutsidePointer(event: PointerEvent) {
+		if (menuOpen && !menuWrap?.contains(event.target as Node)) menuOpen = false;
+	}
+
+	function askToDelete() {
+		menuOpen = false;
+		confirmEl?.showModal();
+	}
+
 	/**
 	 * Back to wherever this receipt was opened from.
 	 *
@@ -30,12 +43,14 @@
 	 * Escape leaves the receipt the way it was opened.
 	 *
 	 * Skipped while the confirm dialog is up — a native <dialog> closes itself on
-	 * Escape, and dismissing it should not also navigate away.
+	 * Escape, and dismissing it should not also navigate away. With the menu
+	 * open, Escape closes just the menu.
 	 */
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key !== 'Escape' || confirmEl?.open) return;
 		event.preventDefault();
-		leave();
+		if (menuOpen) menuOpen = false;
+		else leave();
 	}
 
 	const doc = $derived(data.receipt.docId);
@@ -84,44 +99,58 @@
 	);
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onpointerdown={closeMenuOnOutsidePointer} />
 <svelte:head><title>{title} · HSA Saver</title></svelte:head>
-
-{#snippet fileActions()}
-	{#if doc}
-		<a
-			class="btn btn-secondary"
-			href={resolve('/documents/[id=integer]', { id: String(doc) })}
-			download={data.receipt.originalFilename ?? 'receipt'}
-		>
-			<Icon name="download" size={16} />
-			Download original
-		</a>
-	{/if}
-	<button class="btn btn-secondary danger" onclick={() => confirmEl?.showModal()}>
-		<Icon name="trash" size={16} />
-		Delete
-	</button>
-{/snippet}
 
 <div class="app">
 	<header class="bar">
 		<!-- The href is the fallback for a new tab or no script; a plain click goes
 		     back the way Save and Escape do, to wherever the receipt was opened from. -->
 		<a
-			class="btn btn-ghost back"
+			class="icon-btn back"
 			href={resolve('/receipts')}
+			aria-label="Back"
 			onclick={(event) => {
 				event.preventDefault();
 				leave();
 			}}
 		>
-			<Icon name="chevronLeft" size={16} width={2} />
-			Back
+			<Icon name="arrowBack" />
 		</a>
-		<h1 class="title">{title}</h1>
-		<div class="bar-actions">
-			{@render fileActions()}
+		<h1 class="title md-title-large">{data.receipt.provider ?? 'No provider'}</h1>
+		{#if doc}
+			<a
+				class="icon-btn"
+				href={resolve('/documents/[id=integer]', { id: String(doc) })}
+				download={data.receipt.originalFilename ?? 'receipt'}
+				aria-label="Download original"
+				title="Download original"
+			>
+				<Icon name="download" />
+			</a>
+		{/if}
+		<div class="menu-wrap" bind:this={menuWrap}>
+			<button
+				type="button"
+				class="icon-btn"
+				aria-label="More actions"
+				aria-haspopup="menu"
+				aria-expanded={menuOpen}
+				aria-controls="receipt-menu"
+				onclick={() => (menuOpen = !menuOpen)}
+			>
+				<Icon name="more" />
+			</button>
+			{#if menuOpen}
+				<ul class="menu receipt-menu" id="receipt-menu" role="menu">
+					<li role="none">
+						<button type="button" class="menu-item danger" role="menuitem" onclick={askToDelete}>
+							<Icon name="delete" />
+							Delete receipt
+						</button>
+					</li>
+				</ul>
+			{/if}
 		</div>
 	</header>
 
@@ -134,36 +163,33 @@
 					alt="Receipt from {data.receipt.provider ?? 'an unnamed provider'}"
 				/>
 			{:else if doc && isPdf}
-				<div class="receipt placeholder pdf">
-					<Icon name="receipt" size={30} />
-					<span>PDF receipt</span>
-					<a
-						class="btn btn-secondary"
-						href={resolve('/documents/[id=integer]', { id: String(doc) })}
-					>
+				<div class="receipt placeholder">
+					<Icon name="file" size={36} />
+					<span class="md-body-medium">PDF receipt</span>
+					<a class="btn btn-tonal" href={resolve('/documents/[id=integer]', { id: String(doc) })}>
 						Open original
 					</a>
 				</div>
 			{:else}
 				<div class="receipt placeholder">
-					<Icon name="camera" size={30} />
-					<span>No image on file</span>
+					<Icon name="image" size={36} />
+					<span class="md-body-medium">No image on file</span>
 				</div>
 			{/if}
 
 			{#if doc}
-				<div class="file-meta">
-					<span>
-						{data.receipt.originalFilename ?? 'receipt'}
-						{#if data.receipt.byteSize}· {fileSize(data.receipt.byteSize)}{/if}
-						{#if data.receipt.addedAt}· added {prettyStamp(data.receipt.addedAt)}{/if}
-					</span>
-				</div>
+				<p class="file-meta md-body-small">
+					{data.receipt.originalFilename ?? 'receipt'}
+					{#if data.receipt.byteSize}· {fileSize(data.receipt.byteSize)}{/if}
+					{#if data.receipt.addedAt}· added {prettyStamp(data.receipt.addedAt)}{/if}
+				</p>
 			{/if}
 		</div>
 
 		<div class="panel">
 			<form
+				id="save-form"
+				class="fields"
 				method="POST"
 				action="?/save"
 				use:enhance={() => {
@@ -189,33 +215,36 @@
 					};
 				}}
 			>
-				<div class="fld">
-					<label for="amount">Amount <span class="opt">leave blank if unreadable</span></label>
+				<div class="tf">
+					<label for="amount">Amount</label>
+					<span class="tf-prefix" aria-hidden="true">$</span>
 					<input
 						id="amount"
-						class="input amount"
+						class="tf-input amount"
 						name="amount"
 						type="text"
 						inputmode="decimal"
+						aria-describedby="amount-help"
 						value={data.receipt.amountCents == null
 							? ''
 							: (data.receipt.amountCents / 100).toFixed(2)}
 					/>
+					<span class="tf-support" id="amount-help">Leave blank if unreadable</span>
 				</div>
 
 				<div class="pair">
-					<div class="fld">
+					<div class="tf">
 						<label for="serviceDate">Date of service</label>
 						<input
 							id="serviceDate"
-							class="input"
+							class="tf-input"
 							name="serviceDate"
 							type="date"
 							value={data.receipt.serviceDate}
 							required
 						/>
 					</div>
-					<div class="fld">
+					<div class="tf">
 						<label for="provider">Provider</label>
 						<ProviderInput
 							id="provider"
@@ -224,74 +253,65 @@
 						/>
 					</div>
 				</div>
+			</form>
 
-				<hr class="hr" />
+			<section class="card card-outlined audit" aria-labelledby="audit-heading">
+				<h2 class="md-title-medium" id="audit-heading">Will this hold up?</h2>
+				<ul>
+					{#each checks as c (c.label)}
+						<li class={c.state}>
+							<Icon name={c.state === 'pass' ? 'checkCircle' : 'errorCircle'} size={20} />
+							{c.label}
+						</li>
+					{/each}
+				</ul>
 
-				<div class="audit">
-					<h2 class="kick">Will this hold up?</h2>
-					<ul>
-						{#each checks as c (c.label)}
-							<li class={c.state}>
-								<Icon name={c.state === 'pass' ? 'check' : 'cross'} size={15} width={2} />
-								{c.label}
-							</li>
-						{/each}
-					</ul>
-				</div>
-
-				<!-- Pinned to the bottom of a phone screen, like the capture sheet's
-				     submit, so Save is in reach from the image as well as the form. -->
-				<div class="save-bar">
-					<button type="submit" class="btn btn-primary grow" disabled={saving}>
-						{saving ? 'Saving…' : 'Save changes'}
+				<form
+					method="POST"
+					action="?/reimburse"
+					use:enhance={() => {
+						// Stays on the page deliberately: the checklist and the note below it
+						// both change, and you want to see them change.
+						const undoing = data.receipt.reimbursedAt != null;
+						return async ({ result, update }) => {
+							if (result.type === 'failure') {
+								toasts.error(String(result.data?.error ?? 'Could not update this receipt.'));
+								return;
+							}
+							await update({ reset: false });
+							if (result.type === 'success') {
+								toasts.success(undoing ? 'Reimbursement undone.' : 'Marked reimbursed.');
+							}
+						};
+					}}
+				>
+					<button type="submit" class="btn btn-tonal btn-block">
+						{data.receipt.reimbursedAt ? 'Undo reimbursement' : 'Mark reimbursed'}
 					</button>
-				</div>
-			</form>
+				</form>
 
-			<form
-				method="POST"
-				action="?/reimburse"
-				use:enhance={() => {
-					// Stays on the page deliberately: the checklist and the note below it
-					// both change, and you want to see them change.
-					const undoing = data.receipt.reimbursedAt != null;
-					return async ({ result, update }) => {
-						if (result.type === 'failure') {
-							toasts.error(String(result.data?.error ?? 'Could not update this receipt.'));
-							return;
-						}
-						await update({ reset: false });
-						if (result.type === 'success') {
-							toasts.success(undoing ? 'Reimbursement undone.' : 'Marked reimbursed.');
-						}
-					};
-				}}
-			>
-				<button type="submit" class="btn btn-secondary block">
-					{data.receipt.reimbursedAt ? 'Undo reimbursement' : 'Mark reimbursed'}
-				</button>
-			</form>
-
-			{#if data.receipt.reimbursedAt}
-				<p class="note">
-					Reimbursed {prettyStamp(data.receipt.reimbursedAt)} · {money(data.receipt.amountCents)} is no
-					longer counted in your total.
-				</p>
-			{/if}
-
-			<!-- Phones only: the bar has no room for these, and a destructive
-			     action should not have the most reachable spot anyway. -->
-			<section class="file-section" aria-labelledby="file-heading">
-				<hr class="hr" />
-				<h2 class="kick" id="file-heading">File</h2>
-				{@render fileActions()}
+				{#if data.receipt.reimbursedAt}
+					<p class="note md-body-small">
+						Reimbursed {prettyStamp(data.receipt.reimbursedAt)} · {money(data.receipt.amountCents)} is
+						no longer counted in your total.
+					</p>
+				{/if}
 			</section>
+
+			<!-- Submits the fields above through `form`. Pinned to the bottom of a
+			     phone screen, like the capture sheet's submit, so Save is in reach
+			     from the image as well as the form. -->
+			<div class="save-bar">
+				<button type="submit" form="save-form" class="btn btn-filled save" disabled={saving}>
+					{saving ? 'Saving…' : 'Save changes'}
+				</button>
+			</div>
 		</div>
 	</div>
 </div>
 
-<dialog class="modal" bind:this={confirmEl}>
-	<h2>Delete this receipt?</h2>
+<dialog class="modal confirm" bind:this={confirmEl}>
+	<h2 class="dialog-headline">Delete this receipt?</h2>
 	<p class="dialog-body">
 		It disappears from your vault and stops counting toward your total. The image itself is kept, so
 		this can be undone from the database if you need it back.
@@ -313,113 +333,103 @@
 			};
 		}}
 	>
-		<div class="actions">
-			<button type="button" class="btn btn-secondary" onclick={() => confirmEl?.close()}>
-				Cancel
-			</button>
-			<button type="submit" class="btn btn-primary danger">Delete receipt</button>
+		<div class="dialog-actions">
+			<button type="button" class="btn btn-text" onclick={() => confirmEl?.close()}>Cancel</button>
+			<button type="submit" class="btn btn-text btn-danger">Delete</button>
 		</div>
 	</form>
 </dialog>
 
 <style>
 	.app {
-		max-width: 900px;
+		max-width: 1000px;
 		margin: 0 auto;
 	}
 	.bar {
 		display: flex;
 		align-items: center;
-		gap: 14px;
-		padding: 14px var(--gutter);
-		border-bottom: 1px solid var(--color-rule);
+		gap: 4px;
+		min-height: 64px;
+		padding: 8px calc(var(--gutter) - 12px);
 	}
 	.back {
-		flex: none;
-		font-size: 14px;
-		padding: 0;
-		gap: 6px;
+		color: var(--md-on-surface);
 	}
 	.title {
 		flex: 1;
 		min-width: 0;
-		margin: 0 0 0 6px;
-		font-size: 14px;
-		line-height: 1.3;
-		letter-spacing: normal;
+		margin-left: 4px;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	.bar-actions {
-		margin-left: auto;
-		display: flex;
-		gap: 9px;
+	.menu-wrap {
+		position: relative;
 	}
-	.bar-actions .btn {
-		font-size: 13px;
+	.receipt-menu {
+		position: absolute;
+		z-index: 20;
+		top: calc(100% + 4px);
+		right: 4px;
+		min-width: 200px;
 	}
 
 	.split {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 24px;
+		padding: 8px var(--gutter) 24px;
 	}
 
 	.viewer {
 		min-width: 0;
-		padding: 22px var(--gutter);
-		/* The artboard recesses the image well below the page ground. Nocturne has
-		   no token darker than --color-bg, and shade mixed from black is a shadow
-		   rather than a colour, which the system permits. */
-		background: color-mix(in srgb, var(--color-bg) 82%, #000);
 	}
 	.receipt {
 		width: 100%;
-		height: 472px;
+		height: 480px;
 		object-fit: contain;
-		border-radius: 10px;
+		border-radius: var(--md-shape-lg);
+		background: var(--md-surface-container-highest);
 	}
 	.placeholder {
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: var(--space-4);
-		background: linear-gradient(160deg, var(--color-neutral-800), var(--color-surface));
-		box-shadow: inset 0 0 0 1px var(--color-divider);
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
-		font-size: 13px;
+		gap: 12px;
+		color: var(--md-on-surface-variant);
 	}
 	.file-meta {
-		margin-top: 12px;
-		font-size: 11px;
-		color: color-mix(in srgb, var(--color-text) 50%, transparent);
+		margin: 8px 4px 0;
+		color: var(--md-on-surface-variant);
 	}
 
 	.panel {
 		min-width: 0;
-		padding: 26px var(--gutter);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: 24px;
+		/* Room for the first field's label, which sits above its outline. */
+		padding-top: 8px;
 	}
-	.panel form {
+	.fields {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-6);
+		gap: 24px;
 	}
 	.pair {
 		display: flex;
-		gap: 14px;
+		gap: 16px;
 	}
-	.pair .fld {
+	.pair .tf {
 		flex: 1;
 		min-width: 0;
 	}
 
-	h2.kick {
-		margin: 0 0 11px;
-		font-weight: 400;
+	.audit {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
 	}
 	.audit ul {
 		list-style: none;
@@ -427,51 +437,31 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 9px;
-		font-size: 13px;
+		gap: 12px;
 	}
 	.audit li {
 		display: flex;
 		align-items: center;
-		gap: 9px;
+		gap: 12px;
 	}
+	/* Passing checks stay neutral; red is the accent here, and a red tick
+	   would read as a problem. */
 	.audit li.pass :global(svg) {
-		color: var(--color-accent);
+		color: var(--md-on-surface-variant);
 	}
 	.audit li.fail {
-		color: var(--color-danger);
+		color: var(--md-error);
 	}
-
-	.save-bar,
-	.actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--space-3);
-	}
-	.grow {
-		flex: 1;
-		min-height: 42px;
-	}
-	.block {
-		width: 100%;
-		min-height: 42px;
-	}
-	.danger {
-		color: var(--color-danger);
-		border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
-	}
-	.btn-primary.danger {
-		border-color: var(--color-danger);
+	.audit form {
+		margin-top: 4px;
 	}
 	.note {
-		margin: 0;
-		font-size: 12.5px;
-		line-height: 1.5;
-		color: color-mix(in srgb, var(--color-text) 45%, transparent);
+		color: var(--md-on-surface-variant);
 	}
 
-	.file-section {
-		display: none;
+	.save-bar {
+		display: flex;
+		justify-content: flex-end;
 	}
 
 	@media (max-width: 900px) {
@@ -483,31 +473,16 @@
 		}
 		.pair {
 			flex-direction: column;
+			gap: 24px;
 		}
 	}
 
 	@media (max-width: 700px) {
 		.bar {
-			gap: 4px;
-			padding: 6px var(--gutter) 6px calc(var(--gutter) - 12px);
-		}
-		.back {
-			padding: 0 10px 0 8px;
-		}
-		.title {
-			font-size: 15px;
-		}
-		.bar-actions {
-			display: none;
-		}
-		.viewer {
-			padding-block: 20px;
+			padding: 8px 4px;
 		}
 		.receipt {
 			height: 300px;
-		}
-		.panel {
-			padding: 24px var(--gutter);
 		}
 		.save-bar {
 			position: fixed;
@@ -516,37 +491,14 @@
 			right: 0;
 			bottom: 0;
 			padding: 12px var(--gutter) calc(16px + env(safe-area-inset-bottom));
-			background: color-mix(in srgb, var(--color-bg) 94%, transparent);
-			backdrop-filter: blur(12px);
-			box-shadow: 0 -1px 0 var(--color-rule);
+			background: var(--md-surface-container);
 		}
-		.grow,
-		.block {
-			min-height: 48px;
-			font-size: 15px;
-		}
-		.file-section {
-			display: flex;
-			flex-direction: column;
-			gap: 10px;
-		}
-		.file-section .hr {
-			margin: var(--space-2) 0 var(--space-4);
-		}
-		.file-section h2.kick {
-			margin-bottom: 2px;
-		}
-		.file-section .btn {
+		.save {
 			width: 100%;
+			height: 56px;
+			font-size: 16px;
+			line-height: 24px;
+			letter-spacing: 0.15px;
 		}
-	}
-
-	dialog h2 {
-		font-size: 20px;
-	}
-	.dialog-body {
-		font-size: 13px;
-		line-height: 1.6;
-		color: color-mix(in srgb, var(--color-text) 65%, transparent);
 	}
 </style>

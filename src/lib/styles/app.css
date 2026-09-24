@@ -1,56 +1,25 @@
-/* App-level additions to Nocturne.
-   Kept separate from the vendored `nocturne.css` so that file stays a clean
-   mirror of the design project and can be re-synced without losing these.
-
-   Nocturne is a deliberately mono palette and defines no error role, but the
-   expense forms need one. These two values sit on the same perceptual
-   lightness steps as the system's own ramps (--color-*-300 for the text tone,
-   --color-*-800 for the tinted fill) so they carry the same visual weight as
-   an accent tag beside them. */
+/* App-level layout values, on top of the Material 3 sheet. */
 :root {
-	--color-danger: #e79a9a;
-	--color-danger-800: #6a3a3a;
+	/* Horizontal page margin: Material's 16dp on compact screens, 24dp above. */
+	--gutter: 24px;
 
-	/* The solid hairline under and over chrome (nav, bars, tab bar). Freestanding
-	   rules still fade, per Nocturne; this is for edges that are box outlines. */
-	--color-rule: color-mix(in srgb, var(--color-text) 7%, transparent);
-
-	/* Horizontal page padding. One value, so content edges do not shift as you
-	   move between screens. */
-	--gutter: 26px;
-
-	/* Height of whatever is fixed to the bottom of a phone screen: the tab bar,
-	   or the detail page's save bar. The footer and the toasts both clear it,
-	   so neither needs to know which bar it is. */
+	/* Height of whatever is fixed to the bottom of a phone screen: the
+	   navigation bar, or the detail page's save bar. The footer and the
+	   snackbars both clear it, so neither needs to know which bar it is. */
 	--bottom-bar: 0px;
 }
 
 /* Two breakpoints, shared by every screen: 900 (the split layouts stack) and
-   700 (phone: tab bar, row list, touch sizing). */
+   700 (phone: navigation bar, list rows, full-screen dialogs). */
 @media (max-width: 700px) {
 	:root {
-		--gutter: 20px;
+		--gutter: 16px;
 	}
-	body:has(.tabs) {
-		--bottom-bar: 92px;
+	body:has(.navbar) {
+		--bottom-bar: 80px;
 	}
 	body:has(.save-bar) {
-		--bottom-bar: 76px;
-	}
-
-	/* iOS Safari zooms the page on focus for any field under 16px. */
-	.input {
-		font-size: 16px;
-		min-height: 44px;
-	}
-	/* 44px is the minimum comfortable touch target. */
-	.btn,
-	.seg-opt {
-		min-height: 44px;
-	}
-	.btn-icon {
-		width: 44px;
-		height: 44px;
+		--bottom-bar: 84px;
 	}
 }
 
@@ -59,60 +28,4 @@
 body {
 	padding-left: env(safe-area-inset-left);
 	padding-right: env(safe-area-inset-right);
-}
-
-.visually-hidden {
-	position: absolute;
-	width: 1px;
-	height: 1px;
-	overflow: hidden;
-	clip-path: inset(50%);
-	white-space: nowrap;
-}
-
-/* The artboard's `.kick`: an uppercase micro-label above each block. */
-.kick {
-	font-size: 11px;
-	line-height: 1;
-	letter-spacing: 0.11em;
-	text-transform: uppercase;
-	color: color-mix(in srgb, var(--color-text) 50%, transparent);
-}
-
-/* — form fields: one look for the capture sheet and the edit page — */
-.fld {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-.fld > label {
-	font-size: 12px;
-	color: color-mix(in srgb, var(--color-text) 70%, transparent);
-}
-.fld .opt {
-	font-size: 11px;
-	color: color-mix(in srgb, var(--color-text) 45%, transparent);
-}
-/* Amount is the hero field wherever a receipt is filled in. */
-.input.amount {
-	min-height: 52px;
-	font-family: var(--font-heading);
-	font-weight: var(--font-heading-weight);
-	font-size: 26px;
-	letter-spacing: -0.02em;
-	font-variant-numeric: tabular-nums;
-}
-
-/* — modal dialogs (the capture sheet and the delete confirm) — */
-dialog.modal {
-	color: var(--color-text);
-	background: var(--color-surface);
-	border: none;
-	border-radius: var(--radius-lg);
-	box-shadow: var(--shadow-lg);
-	padding: var(--space-6);
-	width: min(28rem, 92vw);
-}
-dialog.modal::backdrop {
-	background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
 }

@@ -81,7 +81,7 @@
 		{id}
 		{name}
 		{placeholder}
-		class="input"
+		class="tf-input"
 		type="text"
 		autocomplete="off"
 		role="combobox"
@@ -106,7 +106,7 @@
 			bottom, which is where it sits. Pushing the footer down is the lesser
 			cost of the two.
 		-->
-		<ul class="menu" id={listId} role="listbox" aria-label="Providers you have used">
+		<ul class="menu suggestions" id={listId} role="listbox" aria-label="Providers you have used">
 			{#each matches as provider, i (provider)}
 				{@const [before, match, after] = highlight(provider, value)}
 				<li
@@ -119,6 +119,8 @@
 					     not close the menu before the click lands. -->
 					<button
 						type="button"
+						class="menu-item"
+						class:active={i === active}
 						onpointerdown={(e) => e.preventDefault()}
 						onclick={() => choose(provider)}
 						onmouseenter={() => (active = i)}
@@ -135,43 +137,13 @@
 	.combo {
 		display: contents;
 	}
-	.menu {
-		list-style: none;
-		margin: 5px 0 0;
-		padding: 4px;
-		max-height: 196px;
+	.suggestions {
+		max-height: 240px;
 		overflow-y: auto;
-		background: var(--color-bg);
-		border: 1px solid var(--color-divider);
-		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-md);
-	}
-	.menu button {
-		display: block;
-		width: 100%;
-		padding: 7px 9px;
-		text-align: left;
-		font: inherit;
-		font-size: 14px;
-		color: var(--color-text);
-		background: none;
-		border: none;
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-	}
-	li.active button,
-	.menu button:hover {
-		background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-	}
-	@media (max-width: 700px) {
-		.menu button {
-			min-height: 44px;
-			font-size: 16px;
-		}
 	}
 	mark {
 		background: none;
-		color: var(--color-accent);
-		font-weight: var(--font-heading-weight);
+		color: inherit;
+		font-weight: 700;
 	}
 </style>
